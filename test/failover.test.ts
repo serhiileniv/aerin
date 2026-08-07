@@ -89,6 +89,24 @@ describe("provider failover chain", () => {
     expect(err.message.toLowerCase()).toContain("billing");
   });
 
+  // The surfaced error came from whichever model was ACTIVE when it failed —
+  // labelling it with the primary sends the user to fix the wrong provider
+  // ("check your mock key" for a key that is fine). Identity follows the
+  // active model everywhere else in the turn; the error message must too.
+  test("an exhausted chain blames the fallback that actually failed, not the primary", async () => {
+    const agent = makeAgent(brokenModel("Daily quota exceeded"), [
+      { modelId: "backup/model", resolve: () => brokenModel("Invalid API key provided") },
+    ]);
+    const events: AgentEvent[] = [];
+    for await (const e of agent.send("go")) events.push(e);
+
+    const err = events.find((e) => e.type === "error") as Extract<AgentEvent, { type: "error" }>;
+    expect(err.message).toContain("[backup/model]");
+    expect(err.message).not.toContain("mock/primary");
+    // The remediation hint must name the failing provider, not the primary's.
+    expect(err.message).toContain("/connect backup");
+  });
+
   test("ineligible errors never fail over", async () => {
     const agent = makeAgent(brokenModel("Invalid API key provided"), [
       { modelId: "mock/backup", resolve: () => mockModel([{ text: "nope" }]) },

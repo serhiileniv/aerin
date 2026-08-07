@@ -695,7 +695,10 @@ export class Agent {
         this.patchDanglingToolCalls(newMessages);
         yield { type: "error", message: "Interrupted." };
       } else {
-        yield { type: "error", message: enrichProviderError(this.opts.modelId, errorMessage(err)) };
+        // The ACTIVE model raised this — after a failover that is the fallback,
+        // not the primary. Blaming the primary points the user's remediation
+        // (/connect <provider>) at a provider whose key was never the problem.
+        yield { type: "error", message: enrichProviderError(this.activeModelId, errorMessage(err)) };
       }
     } finally {
       this.currentAbort = undefined;
