@@ -77,6 +77,8 @@ interface TranscriptItem {
   key: number;
   kind: TranscriptKind;
   text: string;
+  /** Raw markdown for "assistant" items — kept so a resize can re-wrap at the new width instead of leaving stale hard-wraps. */
+  raw?: string;
 }
 
 /** Only this many trailing items are rendered live — everything above is clipped anyway. */
@@ -355,16 +357,44 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Wire the agent's permission and question callbacks to the dialogs.
+  // Wire the agent's permission and question callbacks to the dialogs. Both
+  // block the agent on you specifically — worth a bell if you're elsewhere.
   useEffect(() => {
-    setup.onPermissionRef.current = (req) =>
-      new Promise<PermissionDecision>((resolve) => setPermission({ req, resolve }));
-    setup.onQuestionRef.current = (q, options) =>
-      new Promise<string>((resolve) => setQuestion({ q, options, resolve }));
+    setup.onPermissionRef.current = (req) => {
+      process.stdout.write("\x07");
+      return new Promise<PermissionDecision>((resolve) => setPermission({ req, resolve }));
+    };
+    setup.onQuestionRef.current = (q, options) => {
+      process.stdout.write("\x07");
+      return new Promise<string>((resolve) => setQuestion({ q, options, resolve }));
+    };
   }, [setup]);
 
   // Markdown reflow width: full window minus the ● indent and border slack.
   const mdWidth = useCallback(() => Math.max(40, (stdout?.columns ?? 80) - 4), [stdout]);
+
+  // Assistant text keeps its raw markdown so a later resize can re-wrap it —
+  // renderMarkdown bakes hard-wraps at the CURRENT width, which turns into
+  // ragged, double-wrapped text if the terminal is resized afterward.
+  const pushAssistant = useCallback(
+    (raw: string) => {
+      setItems((prev) => [
+        ...prev,
+        { key: nextKey.current++, kind: "assistant", text: withDot(renderMarkdown(raw, mdWidth())), raw },
+      ]);
+    },
+    [mdWidth],
+  );
+
+  // Re-wrap every cached assistant reply when the terminal width changes —
+  // otherwise old replies stay hard-wrapped at whatever width they were
+  // first rendered at, producing ragged double-wrapped text.
+  useEffect(() => {
+    setItems((prev) =>
+      prev.map((it) => (it.kind === "assistant" && it.raw ? { ...it, text: withDot(renderMarkdown(it.raw, mdWidth())) } : it)),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size.columns]);
 
   const flushStream = useCallback(() => {
     flushTimer.current = null;
@@ -379,8 +409,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       workingRef.current = true;
       turnStartRef.current = Date.now();
       setWorking(true);
-      const dirName = setup.cwd.split(/[\\/]/).filter(Boolean).pop() ?? "aerin";
-      setTerminalTitle(`✶ ${(display ?? prompt).replace(/\s+/g, " ").slice(0, 40)} — aerin`);
+      setTerminalTitle("aerin");
       pushItem("user", redactSecrets(display ?? prompt));
       // @path tokens attach text files to the prompt and images as multimodal
       // parts (display stays clean).
@@ -418,7 +447,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               const text = streamBuf.current;
               streamBuf.current = "";
               setStreaming("");
-              if (text.trim()) pushItem("assistant", withDot(renderMarkdown(text, mdWidth())));
+              if (text.trim()) pushAssistant(text);
               break;
             }
             case "tool-call":
@@ -525,15 +554,20 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         flushTimer.current = null;
         if (reasoningTimer.current) clearTimeout(reasoningTimer.current);
         reasoningTimer.current = null;
-        if (streamBuf.current.trim()) pushItem("assistant", withDot(renderMarkdown(streamBuf.current, mdWidth())));
+        if (streamBuf.current.trim()) pushAssistant(streamBuf.current);
         streamBuf.current = "";
         setStreaming("");
         // Tell the user what the wait cost them — but skip trivial turns.
+        // The terminal bell matters most here: a turn worth announcing is
+        // also one worth noticing from another window/tab.
         const elapsed = Date.now() - turnStartRef.current;
-        if (elapsed >= 3000) pushItem("info", `  └ done in ${fmtDuration(elapsed)}`);
+        if (elapsed >= 3000) {
+          pushItem("info", `  └ done in ${fmtDuration(elapsed)}`);
+          process.stdout.write("\x07");
+        }
         settleDialogs();
         setSubagents(new Map()); // clear stragglers on abort/error
-        setTerminalTitle(`✦ aerin — ${dirName}`);
+        setTerminalTitle("aerin");
       }
       // Drain the queue: a message starts a turn (whose finally drains the
       // next); a command runs inline and must keep draining itself.
@@ -552,7 +586,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         return rest;
       });
     },
-    [setup, pushItem, flushStream],
+    [setup, pushItem, pushAssistant, flushStream],
   );
 
   // Re-render a saved conversation into the transcript, Claude Code-style:
@@ -567,14 +601,20 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         if (Array.isArray(m.content)) {
           for (const part of m.content as { type?: string; text?: string; toolName?: string }[]) {
             if (part?.type === "text" && part.text?.trim()) {
-              add.push({ key: nextKey.current++, kind: "assistant", text: withDot(renderMarkdown(part.text, mdWidth())) });
+              add.push({
+                key: nextKey.current++,
+                kind: "assistant",
+                text: withDot(renderMarkdown(part.text, mdWidth())),
+                raw: part.text,
+              });
             } else if (part?.type === "tool-call" && part.toolName) {
               add.push({ key: nextKey.current++, kind: "tool", text: `● ${part.toolName}` });
             }
           }
         } else {
           const t = messageText(m);
-          if (t.trim()) add.push({ key: nextKey.current++, kind: "assistant", text: withDot(renderMarkdown(t, mdWidth())) });
+          if (t.trim())
+            add.push({ key: nextKey.current++, kind: "assistant", text: withDot(renderMarkdown(t, mdWidth())), raw: t });
         }
       }
     }

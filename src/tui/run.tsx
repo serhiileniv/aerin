@@ -130,7 +130,7 @@ export async function runTui(flags: TuiFlags, initialPrompt?: string): Promise<v
       process.exit(sig === "SIGTERM" ? 143 : 129);
     });
   }
-  setTerminalTitle(`✦ aerin — ${setup.cwd.split(/[\\/]/).filter(Boolean).pop() ?? "aerin"}`);
+  setTerminalTitle("aerin");
 
   try {
     const instance = render(<App setup={tuiSetup} {...(initialPrompt ? { initialPrompt } : {})} />, {

@@ -61,6 +61,11 @@ const SYNTAX_THEME = {
 let instance: Marked | undefined;
 let configuredWidth = 0;
 
+// OSC 8: clickable links in modern terminals (Windows Terminal, iTerm, ...).
+// Module-level so inlineFallback() can reuse it for links marked-terminal
+// leaves as literal `[text](url)` syntax inside list items.
+const clickable = (href: string) => `\x1b]8;;${href}\x07${accentTone(href)}\x1b]8;;\x07`;
+
 function ensure(width: number): Marked {
   if (instance && configuredWidth === width) return instance;
   configuredWidth = width;
@@ -70,8 +75,6 @@ function ensure(width: number): Marked {
       .split("\n")
       .map((l) => `${dim("│")} ${l.replace(/^ {4}/, "")}`)
       .join("\n");
-  // OSC 8: clickable links in modern terminals (Windows Terminal, iTerm, ...).
-  const clickable = (href: string) => `\x1b]8;;${href}\x07${accentTone(href)}\x1b]8;;\x07`;
   instance.use(
     markedTerminal({
       width,
@@ -109,8 +112,31 @@ export function renderMarkdown(text: string, width = 80): string {
  */
 function inlineFallback(text: string): string {
   const styled = text.includes("\x1b[");
-  return text
+  const withInline = text
     .replace(/\*\*([^*\n]+)\*\*/g, (_, t: string) => (styled ? `\x1b[1m${t}\x1b[22m` : t))
     .replace(/__([^_\n]+)__/g, (_, t: string) => (styled ? `\x1b[1m${t}\x1b[22m` : t))
     .replace(/(?<![`\w])`([^`\n]+)`(?!`)/g, (_, t: string) => (styled ? warm(t) : t));
+  if (!colorEnabled) return withInline;
+  // marked-terminal also leaves list items with a link — markdown syntax or
+  // a bare autolinked URL — unstyled, unlike the same content in a paragraph.
+  // It DOES wrap every list item in a no-op `\x1b[0m` reset regardless, so
+  // "has any escape code" is not a reliable "already styled" signal — strip
+  // bare resets first and check what's left. A line marked-terminal actually
+  // styled keeps a real code after that (color, bold, OSC 8); re-scanning it
+  // here would double-wrap its link (the visible OSC 8 text is itself a URL).
+  return withInline
+    .split("\n")
+    .map((line) => {
+      // The `[` in a bare "\x1b[0m" reset would otherwise collide with the
+      // link regex's own `[...]` matching — safe to strip since we've just
+      // established the line carries no OTHER escape codes worth keeping.
+      const bare = line.replace(/\x1b\[0m/g, "");
+      return bare.includes("\x1b")
+        ? line
+        : bare.replace(
+            /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|https?:\/\/[^\s)\]]+/g,
+            (m: string, t?: string, href?: string) => (t !== undefined ? `${t} (${clickable(href!)})` : clickable(m)),
+          );
+    })
+    .join("\n");
 }
