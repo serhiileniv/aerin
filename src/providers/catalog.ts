@@ -64,6 +64,20 @@ export const PROVIDER_CATALOG: CatalogEntry[] = [
   { id: "friendli", name: "Friendli", baseURL: "https://api.friendli.ai/serverless/v1", needsKey: true },
   { id: "upstage", name: "Upstage (Solar)", baseURL: "https://api.upstage.ai/v1/solar", needsKey: true },
   { id: "vllm", name: "vLLM (local/self-hosted)", baseURL: "http://localhost:8000/v1", needsKey: false },
+
+  // Direct vendor endpoints for model families requested by name.
+  { id: "nvidia", name: "NVIDIA NIM (Nemotron)", baseURL: "https://integrate.api.nvidia.com/v1", needsKey: true },
+  { id: "xiaomi", name: "Xiaomi (MiMo)", baseURL: "https://api.xiaomimimo.com/v1", needsKey: true },
+  { id: "meta", name: "Meta (Muse)", baseURL: "https://api.meta.ai/v1", needsKey: true },
+  // OpenCode Zen: a hosted gateway (needs its own free OPENCODE_API_KEY, but
+  // /models lists keyless) fronting dozens of models, several genuinely
+  // $0/$0-priced ("-free" ids) — Nemotron, Ling/Ring (InclusionAI/Ant),
+  // MiMo, and Muse all have a free variant here, verified live against
+  // models.dev's per-model pricing, not just the provider label. This is
+  // the same mechanism opencode itself uses for its free-tier defaults —
+  // aerin doesn't run its own hosted gateway, so plugging into theirs is
+  // the direct way to get the same "free models" experience.
+  { id: "opencode", name: "OpenCode Zen (free-tier models incl. Nemotron/Ling/MiMo/Muse)", baseURL: "https://opencode.ai/zen/v1", needsKey: true },
 ];
 
 export function catalogEntry(id: string): CatalogEntry | undefined {

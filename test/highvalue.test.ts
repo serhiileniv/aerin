@@ -164,6 +164,74 @@ describe("provider catalog", () => {
     expect(model.provider).toBe("anthropic.messages");
     expect(model.modelId).toBe("MiniMax-Text-01");
   });
+
+  test("OpenCode Zen's free-tier ids sync to $0 pricing and resolve", async () => {
+    const { catalogEntry } = await import("../src/providers/catalog.js");
+    const { registerFromRegistry } = await import("../src/providers/modelsdev.js");
+    const { estimateCostUsd } = await import("../src/providers/models.js");
+    const opencode = catalogEntry("opencode");
+    expect(opencode?.baseURL).toBe("https://opencode.ai/zen/v1");
+
+    registerFromRegistry(
+      {
+        opencode: {
+          models: {
+            "nemotron-3-ultra-free": { cost: { input: 0, output: 0 }, limit: { context: 128000 } },
+            "gpt-5.4": { cost: { input: 3, output: 15 }, limit: { context: 200000 } },
+          },
+        },
+      },
+      ["opencode"],
+    );
+    expect(estimateCostUsd("opencode/nemotron-3-ultra-free", 1000, 1000)).toBe(0);
+    expect(estimateCostUsd("opencode/gpt-5.4", 1_000_000, 0)).toBe(3);
+
+    const model = resolveModel("opencode/nemotron-3-ultra-free", {
+      providers: { opencode: { baseURL: opencode!.baseURL!, apiKey: "oc-test" } },
+    }) as { modelId?: string };
+    expect(model.modelId).toBe("nemotron-3-ultra-free");
+  });
+
+  test("direct Nemotron/MiMo/Muse vendor entries resolve", async () => {
+    const { catalogEntry } = await import("../src/providers/catalog.js");
+    for (const [id, modelId] of [
+      ["nvidia", "nvidia/nemotron-3-super-120b-a12b"],
+      ["xiaomi", "mimo-v2.5"],
+      ["meta", "muse-spark-1.3"],
+    ] as const) {
+      const entry = catalogEntry(id);
+      expect(entry?.baseURL).toMatch(/^https:\/\//);
+      const model = resolveModel(`${id}/${modelId}`, {
+        providers: { [id]: { baseURL: entry!.baseURL!, apiKey: "test-key" } },
+      }) as { modelId?: string };
+      expect(model.modelId).toBe(modelId);
+    }
+  });
+});
+
+describe("google model listing", () => {
+  test("filters out multiturn-incapable previews (computer-use, antigravity) alongside embeddings/tts/image", async () => {
+    const { listProviderModels } = await import("../src/providers/list-models.js");
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          models: [
+            { name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] },
+            { name: "models/gemini-2.5-computer-use-preview-10-2025", supportedGenerationMethods: ["generateContent"] },
+            { name: "models/antigravity-preview-05-2026", supportedGenerationMethods: ["generateContent"] },
+            { name: "models/text-embedding-004", supportedGenerationMethods: ["generateContent"] },
+          ],
+        }),
+        { status: 200 },
+      )) as unknown as typeof fetch;
+    try {
+      const models = await listProviderModels("google", { providers: { google: { apiKey: "test-key" } } });
+      expect(models?.map((m) => m.id)).toEqual(["gemini-2.5-flash"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe("keyLooksLike", () => {

@@ -76,6 +76,11 @@ const listers: Record<string, Lister> = {
     return (data.models ?? [])
       .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
       .filter((m) => !/embedding|aqa|tts|image/.test(m.name))
+      // "generateContent" support doesn't imply multiturn chat: computer-use
+      // and antigravity previews list here but reject a normal chat turn
+      // (zero free quota / "Multiturn chat is not enabled") — not usable as
+      // a driving model regardless of tier, so keep them out of the picker.
+      .filter((m) => !/computer-use|antigravity/.test(m.name))
       .map((m) => ({
         id: m.name.replace(/^models\//, ""),
         ...(m.inputTokenLimit ? { contextWindow: m.inputTokenLimit } : {}),

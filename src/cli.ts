@@ -104,7 +104,8 @@ export async function setupAgent(
       model = unavailableModel(modelId, modelUnavailable);
       warnings.push(
         "Welcome to aerin! No API key found and no local Ollama running. " +
-          "Type /connect to add a provider key, or install Ollama (https://ollama.com) for free local models — " +
+          "Type /connect to add a provider key — pick \"OpenCode Zen\" for several genuinely free-tier " +
+          "cloud models (no local install), or install Ollama (https://ollama.com) for free local models — " +
           `keys can also live in ${GLOBAL_CONFIG_FILE} or env vars (ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY…). ` +
           "Check your setup any time with: aerin doctor",
       );

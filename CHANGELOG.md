@@ -2,6 +2,11 @@
 
 Aerin is developed *with* aerin-style agents: the overwhelming majority of the code since v0.0.90 was written by a coding agent under human direction. We report it per release, Aider-style.
 
+## Unreleased
+- **OpenCode Zen + direct Nemotron/MiMo/Muse**: curated `opencode` entry (OpenCode's own hosted model gateway) — dozens of models, several genuinely $0/$0-priced ("-free" ids), including free-tier Nemotron, Ling/Ring (InclusionAI/Ant), MiMo, and Muse variants, verified against live per-model pricing rather than a provider-wide flag. Also added direct vendor entries: `nvidia` (NVIDIA NIM, Nemotron), `xiaomi` (MiMo), `meta` (Muse).
+- Fix: Google's model list no longer surfaces `computer-use-preview`/`antigravity-preview` — both list under `generateContent` but reject a real chat turn (zero free quota / "multiturn chat not enabled"), so they were unusable dead ends in the picker regardless of tier.
+- Zero-key onboarding message now points at OpenCode Zen alongside Ollama as a way to get free models without a local install.
+
 ## 0.0.117 — 2026-09-03
 *(0.0.116 got stuck mid-publish on the npm registry — accepted but never finalized — and is skipped; same content ships here.)*
 - **Jade theme, deepened**: the initial rebrand read as bright mint; the accent/hero greens are now a deeper, more saturated jade, secondary text and code-accent tones dropped their green cast for true neutral gray/white, and the startup banner + wordmark now fade toward near-black instead of staying pastel.
