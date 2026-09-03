@@ -13,7 +13,7 @@ in ~9k lines of TypeScript with a <a href="docs/index.md">docs page per feature<
 <p align="center">
 <a href="https://github.com/Serhii-Leniv/aerin/actions/workflows/ci.yml"><img src="https://github.com/Serhii-Leniv/aerin/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 <a href="https://www.npmjs.com/package/aerin-agent"><img src="https://img.shields.io/npm/v/aerin-agent" alt="npm"></a>
-<a href=".github/workflows/ci.yml"><img src="https://img.shields.io/badge/src-%3C10k_lines,_CI--enforced-ff5577" alt="line budget"></a>
+<a href=".github/workflows/ci.yml"><img src="https://img.shields.io/badge/src-%3C10k_lines,_CI--enforced-00c078" alt="line budget"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT"></a>
 </p>
 
@@ -65,7 +65,7 @@ aerin -m ollama/llama3.1               # local, no key needed
 
 Every feature has a page in the [docs knowledge base](docs/index.md) with mechanics, invariants, and source pointers.
 
-- **[Any model, any provider](docs/model-families.md)** — Anthropic, OpenAI, Google, OpenRouter, xAI, local Ollama, plus any OpenAI-compatible endpoint via a two-line config entry. The system prompt is tuned per model family and follows `/model` switches; aerin never auto-selects a paid model.
+- **[Any model, any provider](docs/model-families.md)** — Anthropic, OpenAI, Google, OpenRouter, xAI, local Ollama, plus [any OpenAI- or Anthropic-Messages-compatible endpoint](docs/configuration.md#connecting-an-anthropic-messages-shaped-or-oddly-authenticated-endpoint) via a few-line config entry, custom headers included for gateways that don't use a plain Bearer key. The system prompt is tuned per model family and follows `/model` switches; aerin never auto-selects a paid model.
 - **[Real coding tools](docs/tools.md)** — read/write/edit (CRLF-safe), glob, ripgrep-accelerated grep, a shell with a proper Windows strategy, background jobs, keyless web search/fetch.
 - **[Sub-agents](docs/subagents.md)** — read-only researchers with their own context windows, write-capable workers under your permission rules, and named custom agents from markdown files.
 - **[Autonomous goal loop](docs/goal-loop.md)** — `/goal <text>` keeps working until an evidence-based judge sees it done: fail-open, turn-budgeted, steered by not-done verdicts.

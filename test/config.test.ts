@@ -48,6 +48,26 @@ describe("config", () => {
     expect(config.permissions?.allow).toEqual(["bash(npm *)"]);
   });
 
+  test("custom provider headers and protocol parse and merge from project settings", async () => {
+    const cwd = await tmpCwd();
+    await fs.mkdir(path.join(cwd, ".aerin"), { recursive: true });
+    await fs.writeFile(
+      path.join(cwd, ".aerin", "settings.json"),
+      JSON.stringify({
+        providers: {
+          mygateway: {
+            baseURL: "https://gateway.example.com/v1",
+            protocol: "anthropic",
+            headers: { "x-tenant-id": "acme" },
+          },
+        },
+      }),
+    );
+    const { config } = await loadConfig(cwd);
+    expect(config.providers?.mygateway?.protocol).toBe("anthropic");
+    expect(config.providers?.mygateway?.headers).toEqual({ "x-tenant-id": "acme" });
+  });
+
   test("invalid JSON in settings raises a clear error", async () => {
     const cwd = await tmpCwd();
     await fs.mkdir(path.join(cwd, ".aerin"), { recursive: true });

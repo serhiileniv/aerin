@@ -117,12 +117,15 @@ function buildPickerItems(
   return items;
 }
 
+type ConnectProtocol = "openai" | "anthropic";
+
 type ConnectState =
   | { step: "pick"; dynamic: import("../providers/modelsdev.js").ModelsDevProvider[] }
   | { step: "key"; id: string; label: string; baseURL?: string }
   | { step: "custom-name" }
-  | { step: "custom-url"; id: string }
-  | { step: "custom-key"; id: string; baseURL: string };
+  | { step: "custom-protocol"; id: string }
+  | { step: "custom-url"; id: string; protocol: ConnectProtocol }
+  | { step: "custom-key"; id: string; baseURL: string; protocol: ConnectProtocol };
 
 interface PendingPermission {
   req: PermissionRequest;
@@ -134,7 +137,7 @@ const SLASH_COMMANDS = [
   { name: "/plan", description: "toggle plan mode — read-only exploration, agent presents a plan" },
   { name: "/undo", description: "revert the file changes of the last turn (incl. bash side effects)" },
   { name: "/redo", description: "re-apply changes reverted by /undo" },
-  { name: "/connect", description: "connect a provider — catalog of 14 + custom endpoints" },
+  { name: "/connect", description: "connect a provider — catalog, custom OpenAI- or Anthropic-compatible endpoints" },
   { name: "/compact", description: "summarize the conversation to free context" },
   { name: "/clear", description: "clear conversation history" },
   { name: "/resume", description: "resume a previous conversation in this directory" },
@@ -156,8 +159,8 @@ const LOGO = [
   "╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝",
 ] as const;
 const MIN_LOGO_COLUMNS = 42;
-/** Row shades for the wordmark: bright pink-red at the top melting into magenta. */
-const SUNSET = ["#ff5577", "#f7446e", "#ee3366", "#e04477", "#d05590", "#c055a9"] as const;
+/** Row shades for the wordmark: bright mint-jade at the top melting into near-black emerald. */
+const SUNSET = ["#5fe8b0", "#3fdda0", "#22cf8f", "#0fbd82", "#03a271", "#00875f"] as const;
 
 /** Truecolor ANSI paint for banner text baked into the transcript. */
 function paint(s: string, hex: string, bold = false): string {
@@ -223,8 +226,8 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
 
   // The startup banner is transcript content, not chrome (Claude Code-style):
   // it scrolls away as the conversation grows and reappears on /clear.
-  // Synthwave sunset: the wordmark fades row by row from bright pink down
-  // into synth purple at a horizon line — one hue family, all aerin.
+  // Jade fade: the wordmark fades row by row from bright mint down into
+  // near-black emerald at a horizon line — one hue family, all aerin.
   const bannerItem = (model: string, key = 0): TranscriptItem => {
     const art =
       size.columns >= MIN_LOGO_COLUMNS
@@ -606,7 +609,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
   }, [setup, pushItem]);
 
   const saveConnection = useCallback(
-    async (id: string, key: string, baseURL?: string): Promise<void> => {
+    async (id: string, key: string, baseURL?: string, protocol?: ConnectProtocol): Promise<void> => {
       // A key whose format belongs to another provider is refused outright.
       const looks = key ? keyLooksLike(key) : undefined;
       if (looks && looks !== id) {
@@ -617,13 +620,14 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         return;
       }
       try {
-        await persistProviderKey(id, key, baseURL);
+        await persistProviderKey(id, key, baseURL, protocol);
         setup.config.providers = {
           ...setup.config.providers,
           [id]: {
             ...setup.config.providers?.[id],
             ...(key ? { apiKey: key } : {}),
             ...(baseURL ? { baseURL } : {}),
+            ...(protocol ? { protocol } : {}),
           },
         };
       } catch (err) {
@@ -1286,7 +1290,26 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
                 setConnect(null);
                 return pushItem("info", "(connect cancelled)");
               }
-              setConnect({ step: "custom-url", id });
+              setConnect({ step: "custom-protocol", id });
+            }}
+          />
+        </Box>
+      ) : null}
+
+      {connect?.step === "custom-protocol" ? (
+        <Box flexDirection="column" borderStyle="round" borderColor={C.accent} paddingX={1}>
+          <Text color={C.accent}>Wire protocol for {connect.id} — Esc to cancel</Text>
+          <FilterSelect
+            active={true}
+            {...(setup.mouse ? { wheel: setup.mouse } : {})}
+            items={[
+              { label: "OpenAI-compatible (default — most providers)", value: "openai" },
+              { label: "Anthropic-compatible (Messages API)", value: "anthropic" },
+            ]}
+            onCancel={() => setConnect(null)}
+            onSelect={(v) => {
+              const { id } = connect;
+              setConnect({ step: "custom-url", id, protocol: v as ConnectProtocol });
             }}
           />
         </Box>
@@ -1299,12 +1322,12 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             active={true}
             onSubmit={(raw) => {
               const baseURL = raw.trim();
-              const { id } = connect;
+              const { id, protocol } = connect;
               if (!/^https?:\/\//.test(baseURL)) {
                 setConnect(null);
                 return pushItem("info", "(connect cancelled — base URL must start with http)");
               }
-              setConnect({ step: "custom-key", id, baseURL });
+              setConnect({ step: "custom-key", id, baseURL, protocol });
             }}
           />
         </Box>
@@ -1316,9 +1339,9 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             prompt={`${connect.id} API key (Enter empty if none, e.g. local): `}
             active={true}
             onSubmit={(raw) => {
-              const { id, baseURL } = connect;
+              const { id, baseURL, protocol } = connect;
               setConnect(null);
-              void saveConnection(id, raw.trim(), baseURL);
+              void saveConnection(id, raw.trim(), baseURL, protocol);
             }}
           />
         </Box>

@@ -47,7 +47,7 @@ const HELP = `Commands:
   /mcp          list connected MCP servers
   /undo         revert the file changes of the last turn (incl. bash side effects)
   /redo         re-apply changes reverted by /undo
-  /connect <provider> <key>   save a provider API key to the global config
+  /connect <provider> <key> [baseURL] [openai|anthropic]   save a provider API key to the global config
   /exit         quit
 Anything else is sent to the agent. Ctrl+C interrupts a running turn.`;
 
@@ -193,17 +193,28 @@ export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise
         return undefined;
       }
       if (line.startsWith("/connect")) {
-        const [, prov, key, url] = line.split(/\s+/);
+        const [, prov, key, url, protoArg] = line.split(/\s+/);
         if (prov && key) {
           const looks = keyLooksLike(key);
           if (looks && looks !== prov) {
             stdout.write(`  ✗ that looks like a ${looks} key, not ${prov} — nothing saved. Use /connect ${looks}\n`);
             return undefined;
           }
-          await persistProviderKey(prov, key, url ?? catalogEntry(prov)?.baseURL);
+          const protocol = protoArg === "openai" || protoArg === "anthropic" ? protoArg : undefined;
+          if (protoArg && !protocol) {
+            stdout.write(`  ✗ unknown protocol "${protoArg}" — expected "openai" or "anthropic"\n`);
+            return undefined;
+          }
+          const baseURL = url ?? catalogEntry(prov)?.baseURL;
+          await persistProviderKey(prov, key, baseURL, protocol);
           setup.config.providers = {
             ...setup.config.providers,
-            [prov]: { ...setup.config.providers?.[prov], apiKey: key },
+            [prov]: {
+              ...setup.config.providers?.[prov],
+              apiKey: key,
+              ...(baseURL ? { baseURL } : {}),
+              ...(protocol ? { protocol } : {}),
+            },
           };
           try {
             const models = await listProviderModels(prov, setup.config);
@@ -216,7 +227,7 @@ export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise
             stdout.write(`  ✗ ${prov} REJECTED the key (${err instanceof Error ? err.message : err})\n`);
           }
         } else {
-          stdout.write("  usage: /connect <provider> <api-key> [baseURL]\n");
+          stdout.write("  usage: /connect <provider> <api-key> [baseURL] [openai|anthropic]\n");
         }
         return undefined;
       }

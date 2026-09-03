@@ -84,6 +84,47 @@ describe("custom providers", () => {
     expect(() => resolveModel("mysterio/model-1", {})).toThrow(/baseURL/);
   });
 
+  test("protocol: anthropic routes a custom baseURL through the Anthropic adapter, not OpenAI-compatible", () => {
+    const config = {
+      providers: {
+        mygateway: { baseURL: "https://gateway.example.com/v1", apiKey: "sk-x", protocol: "anthropic" as const },
+      },
+    };
+    const model = resolveModel("mygateway/claude-3-haiku", config) as { provider?: string; modelId?: string };
+    expect(model.provider).toBe("anthropic.messages");
+    expect(model.modelId).toBe("claude-3-haiku");
+  });
+
+  test("protocol defaults to openai-compatible when unset", () => {
+    const config = { providers: { mygateway: { baseURL: "https://gateway.example.com/v1", apiKey: "sk-x" } } };
+    const model = resolveModel("mygateway/some-model", config) as { provider?: string };
+    expect(model.provider).toBe("mygateway.chat");
+  });
+
+  test("custom headers are accepted without throwing, for both protocols", () => {
+    const openaiCfg = {
+      providers: {
+        mygateway: {
+          baseURL: "https://gateway.example.com/v1",
+          apiKey: "sk-x",
+          headers: { "x-tenant-id": "acme" },
+        },
+      },
+    };
+    expect(() => resolveModel("mygateway/some-model", openaiCfg)).not.toThrow();
+
+    const anthropicCfg = {
+      providers: {
+        mygateway: {
+          baseURL: "https://gateway.example.com/v1",
+          protocol: "anthropic" as const,
+          headers: { "x-tenant-id": "acme" },
+        },
+      },
+    };
+    expect(() => resolveModel("mygateway/claude-3-haiku", anthropicCfg)).not.toThrow();
+  });
+
   test("xai is a first-class provider", () => {
     expect(PROVIDERS["xai"]?.envVar).toBe("XAI_API_KEY");
     const model = resolveModel("xai/grok-code-fast-1", {
@@ -223,10 +264,17 @@ describe("models.dev provider catalog", () => {
 describe("persistProviderKey", () => {
   test("writes and merges provider entries", async () => {
     const file = path.join(await tmpCwd(), "config.json");
-    await persistProviderKey("xai", "xai-abc", undefined, file);
-    await persistProviderKey("kimi", "sk-k", "https://api.moonshot.ai/v1", file);
+    await persistProviderKey("xai", "xai-abc", undefined, undefined, file);
+    await persistProviderKey("kimi", "sk-k", "https://api.moonshot.ai/v1", undefined, file);
     const raw = JSON.parse(await fs.readFile(file, "utf8"));
     expect(raw.providers.xai.apiKey).toBe("xai-abc");
     expect(raw.providers.kimi.baseURL).toBe("https://api.moonshot.ai/v1");
+  });
+
+  test("persists a custom protocol", async () => {
+    const file = path.join(await tmpCwd(), "config.json");
+    await persistProviderKey("mygw", "sk-x", "https://gw.example/v1", "anthropic", file);
+    const raw = JSON.parse(await fs.readFile(file, "utf8"));
+    expect(raw.providers.mygw.protocol).toBe("anthropic");
   });
 });

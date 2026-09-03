@@ -18,6 +18,10 @@ const mcpServerSchema = z.union([
 const providerSchema = z.object({
   apiKey: z.string().optional(),
   baseURL: z.string().optional(),
+  /** Extra request headers — auth schemes beyond a plain Bearer key, org/tenant ids, etc. */
+  headers: z.record(z.string()).optional(),
+  /** Wire protocol for a custom (non-built-in) provider name. Default: openai-compatible. */
+  protocol: z.enum(["openai", "anthropic"]).optional(),
 });
 
 export const configSchema = z.object({
@@ -122,11 +126,12 @@ export async function persistModelChoice(modelId: string, file: string = GLOBAL_
   await fs.writeFile(file, JSON.stringify(raw, null, 2) + "\n", "utf8");
 }
 
-/** Save a provider API key (and optional baseURL) to the global config. */
+/** Save a provider API key (and optional baseURL/protocol) to the global config. */
 export async function persistProviderKey(
   provider: string,
   apiKey: string,
   baseURL?: string,
+  protocol?: "openai" | "anthropic",
   file: string = GLOBAL_CONFIG_FILE,
 ): Promise<void> {
   const raw = ((await readJsonIfExists(file)) ?? {}) as Record<string, unknown>;
@@ -135,6 +140,7 @@ export async function persistProviderKey(
     ...providers[provider],
     ...(apiKey ? { apiKey } : {}),
     ...(baseURL ? { baseURL } : {}),
+    ...(protocol ? { protocol } : {}),
   };
   raw["providers"] = providers;
   await fs.mkdir(path.dirname(file), { recursive: true });

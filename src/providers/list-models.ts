@@ -142,13 +142,25 @@ export async function detectOllamaModel(config: AerinConfig): Promise<string | u
 
 function customListerFor(name: string): Lister {
   return async (cfg) => {
-    const baseURL = cfg.providers?.[name]?.baseURL;
+    const entry = cfg.providers?.[name];
+    const baseURL = entry?.baseURL;
     if (!baseURL) return undefined;
-    const key = cfg.providers?.[name]?.apiKey;
-    const data = (await fetchJson(
-      `${baseURL.replace(/\/$/, "")}/models`,
-      key ? { Authorization: `Bearer ${key}` } : {},
-    )) as { data?: { id: string }[] };
+    const key = entry?.apiKey;
+    const root = baseURL.replace(/\/$/, "");
+    const url =
+      entry?.protocol === "anthropic" ? `${root}/models?limit=100` : `${root}/models`;
+    const authHeaders: Record<string, string> = {};
+    if (key) {
+      if (entry?.protocol === "anthropic") {
+        authHeaders["x-api-key"] = key;
+        authHeaders["anthropic-version"] = "2023-06-01";
+      } else {
+        authHeaders["Authorization"] = `Bearer ${key}`;
+      }
+    }
+    const data = (await fetchJson(url, { ...authHeaders, ...entry?.headers })) as {
+      data?: { id: string }[];
+    };
     return (data.data ?? []).map((m) => ({ id: m.id }));
   };
 }

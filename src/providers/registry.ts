@@ -58,6 +58,7 @@ export function resolveModel(fullId: string, config: AerinConfig): LanguageModel
   const modelId = fullId.slice(slash + 1);
   const apiKey = resolveApiKey(provider, config);
   const baseURL = config.providers?.[provider]?.baseURL;
+  const headers = config.providers?.[provider]?.headers;
 
   const requireKey = (): string => {
     if (!apiKey) {
@@ -71,33 +72,47 @@ export function resolveModel(fullId: string, config: AerinConfig): LanguageModel
 
   switch (provider) {
     case "anthropic":
-      return createAnthropic({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}) })(modelId);
+      return createAnthropic({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}), ...(headers ? { headers } : {}) })(modelId);
     case "openai":
-      return createOpenAI({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}) })(modelId);
+      return createOpenAI({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}), ...(headers ? { headers } : {}) })(modelId);
     case "google":
-      return createGoogleGenerativeAI({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}) })(modelId);
+      return createGoogleGenerativeAI({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}), ...(headers ? { headers } : {}) })(modelId);
     case "openrouter":
-      return createOpenRouter({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}) })(modelId);
+      return createOpenRouter({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}), ...(headers ? { headers } : {}) })(modelId);
     case "xai":
-      return createXai({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}) })(modelId);
+      return createXai({ apiKey: requireKey(), ...(baseURL ? { baseURL } : {}), ...(headers ? { headers } : {}) })(modelId);
     case "ollama":
       return createOpenAICompatible({
         name: "ollama",
         baseURL: baseURL ?? "http://localhost:11434/v1",
+        ...(headers ? { headers } : {}),
       })(modelId);
-    default:
-      // Custom provider: any config entry with a baseURL speaks the OpenAI
-      // protocol via the compatible adapter. Key optional (local servers).
+    default: {
+      // Custom provider: any config entry with a baseURL is routable. Default
+      // wire protocol is OpenAI-compatible; set providers.<name>.protocol to
+      // "anthropic" for endpoints that speak the Anthropic Messages API
+      // instead. Key optional (local servers).
       if (baseURL) {
+        const protocol = config.providers?.[provider]?.protocol ?? "openai";
+        if (protocol === "anthropic") {
+          return createAnthropic({
+            baseURL,
+            ...(apiKey ? { apiKey } : {}),
+            ...(headers ? { headers } : {}),
+          })(modelId);
+        }
         return createOpenAICompatible({
           name: provider,
           baseURL,
           ...(apiKey ? { apiKey } : {}),
+          ...(headers ? { headers } : {}),
         })(modelId);
       }
       throw new Error(
         `Unknown provider "${provider}". Built in: ${Object.keys(PROVIDERS).join(", ")} — or add ` +
-          `a custom OpenAI-compatible one to config: {"providers": {"${provider}": {"baseURL": "https://...", "apiKey": "..."}}}`,
+          `a custom one to config: {"providers": {"${provider}": {"baseURL": "https://...", "apiKey": "...", ` +
+          `"protocol": "openai" | "anthropic", "headers": {...}}}} (protocol defaults to "openai").`,
       );
+    }
   }
 }
