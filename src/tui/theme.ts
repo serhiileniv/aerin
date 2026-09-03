@@ -7,8 +7,9 @@
  * app reads as black-and-white with one deliberate accent, not a wash of
  * green. `accent`, `ok`, and `magenta` keep their historical names (UI code
  * refers to roles, never raw colors) but hold neutral grays now, not hues.
- * Red and amber stay as functional signal colors for errors/warnings — the
- * one deliberate exception to "grayscale everywhere else".
+ * Red stays as the functional signal color for errors — the one deliberate
+ * exception to "grayscale everywhere else". There is no amber/yellow: a
+ * working/in-progress state uses the one accent green instead.
  * The palette is mutable so background detection can swap in the
  * light-terminal variants before first render.
  */
@@ -21,8 +22,6 @@ export const C = {
   dim: "#6e756f",
   /** Success / done / accept-mode — near-white, brightest neutral (matches fg). */
   ok: "#f3f3f1",
-  /** Warnings, in-progress, queued — golden (ansiBrightYellow), kept functional. */
-  warn: "#face2f",
   /** Errors and destructive hints — rust red (ansiRed), kept functional. */
   error: "#cc371e",
   /** Plan mode, section headers, reasoning — medium neutral gray, a third step, not a hue. */
@@ -41,7 +40,6 @@ const LIGHT: typeof C = {
   accentBright: "#045c3d", // deepened Dark Jade for white — still the one green
   dim: "#55605a",
   ok: "#121212", // matches fg — brightest/most-prominent neutral on white is near-black
-  warn: "#9a7b00",
   error: "#b32e14",
   magenta: "#454845", // medium neutral gray, between accent and dim
   orange: "#34342e", // dark warm-neutral ink — white itself won't show on white

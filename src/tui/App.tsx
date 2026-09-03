@@ -1158,8 +1158,8 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       {/* Bottom section: dialogs, input, status — pinned by layout. */}
       <Box flexDirection="column" flexShrink={0}>
       {permission && !denyReasonMode ? (
-        <Box flexDirection="column" borderStyle="round" borderColor={C.warn} paddingX={1}>
-          <Text color={C.warn}>Permission: {permission.req.summary}</Text>
+        <Box flexDirection="column" borderStyle="round" borderColor={C.fg} paddingX={1}>
+          <Text bold color={C.fg}>Permission: {permission.req.summary}</Text>
           {permission.req.preview ? (
             <DiffText diff={permission.req.preview} maxLines={Math.max(4, Math.min(25, size.rows - 12))} />
           ) : null}
@@ -1431,7 +1431,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       {inputActive ? (
         <Box
           borderStyle="round"
-          borderColor={planMode ? C.magenta : mode === "accept" ? C.ok : working ? C.warn : C.dim}
+          borderColor={planMode ? C.magenta : mode === "accept" ? C.ok : working ? C.accentBright : C.dim}
           paddingX={1}
         >
           <LineInput
@@ -1461,9 +1461,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               color={
                 ctxTokens / modelInfo(modelId).contextWindow > 0.8
                   ? C.error
-                  : ctxTokens / modelInfo(modelId).contextWindow > 0.5
-                    ? C.warn
-                    : C.dim
+                  : C.dim
               }
             >
               {` · ctx ${Math.round((ctxTokens / modelInfo(modelId).contextWindow) * 100)}%`}
@@ -1477,7 +1475,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
           {goalSet ? <Text color={C.accent}> · goal</Text> : null}
           {planMode ? <Text color={C.magenta}> · plan (shift+tab)</Text> : null}
           {mode === "accept" ? <Text color={C.ok}>{" · >> accept edits (shift+tab)"}</Text> : null}
-          {scrollOffset > 0 ? <Text color={C.warn}> · ↑ scrolled (PgDn)</Text> : null}
+          {scrollOffset > 0 ? <Text color={C.dim}> · ↑ scrolled (PgDn)</Text> : null}
           {exitArmed ? <Text color={C.error}> · Ctrl+C again to exit</Text> : null}
         </Text>
       </Box>

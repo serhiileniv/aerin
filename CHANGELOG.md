@@ -2,6 +2,9 @@
 
 Aerin is developed *with* aerin-style agents: the overwhelming majority of the code since v0.0.90 was written by a coding agent under human direction. We report it per release, Aider-style.
 
+## Unreleased
+- **No more yellow**: removed the last non-grayscale, non-accent color — amber (`warn`) was still showing up as a yellow input border while the agent works, a yellow permission-dialog border, a yellow context-usage warning, and a yellow "scrolled back" hint. The working-state input border now uses the one accent green (a meaningful, deliberate third use of it, alongside the wordmark/voice-marks and code keywords); the permission dialog and other status hints are plain white/gray. The `warn` role itself is removed from the theme — it had zero remaining users. Red stays for actual errors.
+
 ## 0.0.118 — 2026-09-03
 - **Jade theme, one green**: consolidated down to exactly one green (accentBright, Dark Jade) used only where it's meaningful — the wordmark, the "●"/"✻" marks that identify aerin's own voice, diff additions, and code keywords. Everything that used to be a second or third shade of green (links, headings, inline code, strings, numbers, function/class names, the input cursor, the loading spinner, plan-mode/section-header text) is now pure grayscale. Red and amber are unchanged (still functional error/warning signals).
 - **TUI polish**: the input box no longer defaults to a green border/prompt (green now only signals plan/accept/working states); your own messages in the transcript render bold white instead of green, closer to how Claude Code highlights your turns; multi-line messages you send now indent continuation lines under the `❯` marker instead of running flush left, matching how the agent's own replies already align under `●`; fixed a cursor/placeholder off-by-one that put two spaces before the empty-input hint instead of one.
