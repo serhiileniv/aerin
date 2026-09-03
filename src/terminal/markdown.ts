@@ -15,42 +15,45 @@ import { C, rgbOf } from "../tui/theme.js";
 const colorEnabled = Boolean(process.env["FORCE_COLOR"]) || process.stdout.isTTY === true;
 const wrap = (get: () => string, bold = false) => (s: string) =>
   colorEnabled ? `\x1b[${bold ? "1;" : ""}38;2;${rgbOf(get())}m${s}\x1b[0m` : s;
-const pink = wrap(() => C.accentBright, true); // headings — brand pink, bold
-const cyan = wrap(() => C.accent); // links
-const dim = wrap(() => C.dim); // blockquotes, hr
-const yellow = wrap(() => C.warn); // inline code
-
-// Syntax theme for fenced code (highlight.js token names).
-const pinkPlain = wrap(() => C.accentBright);
-const green = wrap(() => C.ok);
-const purple = wrap(() => C.magenta);
-const orange = wrap(() => C.orange);
+// Exactly one hue in the whole theme (accentBright, Dark Jade) — used here
+// ONLY for code keywords and diff additions. Everything else below is a
+// grayscale step (fg/accent/magenta/orange/dim), so a typical reply with
+// headings, prose, and a code block stays black-and-white with that one
+// green touch, not a wash of color.
+const brand = wrap(() => C.accentBright, true); // keywords — the one green, bold
+const brandPlain = wrap(() => C.accentBright); // diff additions — the one green, plain
+const boldAccent = wrap(() => C.accent, true); // headings
+const accentTone = wrap(() => C.accent); // links, types/classes/functions/tags
+const dim = wrap(() => C.dim); // blockquotes, hr, comments, low-emphasis
+const midTone = wrap(() => C.magenta); // literals, symbols — a third gray step
+const warm = wrap(() => C.orange); // inline code, numbers, strings — soft gray-white
 const fg = wrap(() => C.fg);
 const id = (s: string) => s;
-// Pop N' Lock fidelity: gold functions/classes, lime strings, red keywords/types.
+
+// Syntax theme for fenced code (highlight.js token names) — grayscale except `keyword`.
 const SYNTAX_THEME = {
-  keyword: pinkPlain,
-  built_in: cyan,
-  type: pinkPlain,
-  literal: purple,
-  number: orange,
-  regexp: green,
-  string: green,
-  class: yellow,
-  function: yellow,
-  title: yellow,
-  params: orange,
+  keyword: brand,
+  built_in: fg,
+  type: accentTone,
+  literal: midTone,
+  number: warm,
+  regexp: dim,
+  string: warm,
+  class: accentTone,
+  function: accentTone,
+  title: accentTone,
+  params: dim,
   comment: dim,
   doctag: dim,
   meta: dim,
-  tag: pinkPlain,
-  name: cyan,
-  attr: green,
-  attribute: green,
+  tag: accentTone,
+  name: fg,
+  attr: dim,
+  attribute: dim,
   variable: fg,
-  symbol: purple,
-  bullet: cyan,
-  addition: green,
+  symbol: midTone,
+  bullet: fg,
+  addition: brandPlain,
   deletion: wrap(() => C.error),
   default: id,
 };
@@ -68,20 +71,20 @@ function ensure(width: number): Marked {
       .map((l) => `${dim("│")} ${l.replace(/^ {4}/, "")}`)
       .join("\n");
   // OSC 8: clickable links in modern terminals (Windows Terminal, iTerm, ...).
-  const clickable = (href: string) => `\x1b]8;;${href}\x07${cyan(href)}\x1b]8;;\x07`;
+  const clickable = (href: string) => `\x1b]8;;${href}\x07${accentTone(href)}\x1b]8;;\x07`;
   instance.use(
     markedTerminal({
       width,
       reflowText: true,
       showSectionPrefix: false,
       tab: 2,
-      firstHeading: pink,
-      heading: pink,
-      link: cyan,
+      firstHeading: boldAccent,
+      heading: boldAccent,
+      link: accentTone,
       href: colorEnabled ? clickable : (s: string) => s,
       blockquote: dim,
       hr: dim,
-      codespan: yellow,
+      codespan: warm,
       code: railed, // fenced blocks get a dim left rail instead of bare indent
     }, colorEnabled ? { theme: SYNTAX_THEME as never } : undefined) as Parameters<Marked["use"]>[0],
   );
@@ -109,5 +112,5 @@ function inlineFallback(text: string): string {
   return text
     .replace(/\*\*([^*\n]+)\*\*/g, (_, t: string) => (styled ? `\x1b[1m${t}\x1b[22m` : t))
     .replace(/__([^_\n]+)__/g, (_, t: string) => (styled ? `\x1b[1m${t}\x1b[22m` : t))
-    .replace(/(?<![`\w])`([^`\n]+)`(?!`)/g, (_, t: string) => (styled ? yellow(t) : t));
+    .replace(/(?<![`\w])`([^`\n]+)`(?!`)/g, (_, t: string) => (styled ? warm(t) : t));
 }

@@ -1,33 +1,32 @@
 /**
- * Aerin's color theme: Jade — deep green, true black, true white, built on
- * real named colors rather than invented ones: Emerald #50c878 (the
- * gemstone's canonical hex) as the lighter interactive tone, Dark Jade
- * #007a54 as the hero, and traditional pigment Emerald Green #046307
- * anchoring the deep end of every gradient. Success and the tertiary
- * (plan-mode/headers) role are the standard CSS greens MediumSeaGreen and
- * SeaGreen. Everything else — foreground, secondary text, code warmth —
- * stays neutral black/white/gray so the ground reads as black-and-white
- * with a jade accent, not a wash of mint. Red and amber stay as functional
- * signal colors for errors/warnings — the one deliberate exception.
- * Central palette: UI code refers to roles, never raw colors, so retheming is
- * a one-file change. The palette is mutable so background detection can swap
- * in the light-terminal variants before first render.
+ * Aerin's color theme: Jade — exactly ONE green (accentBright, Dark Jade
+ * #007a54) used sparingly at meaningful moments: the wordmark/banner, the
+ * "●"/"✻" marks that identify aerin's own voice, diff additions, and code
+ * keywords. Every other role is pure grayscale — a ramp from near-black
+ * (dim) through mid-grays (magenta, accent) to near-white (fg/ok) — so the
+ * app reads as black-and-white with one deliberate accent, not a wash of
+ * green. `accent`, `ok`, and `magenta` keep their historical names (UI code
+ * refers to roles, never raw colors) but hold neutral grays now, not hues.
+ * Red and amber stay as functional signal colors for errors/warnings — the
+ * one deliberate exception to "grayscale everywhere else".
+ * The palette is mutable so background detection can swap in the
+ * light-terminal variants before first render.
  */
 export const C = {
-  /** Interactive accent: prompts, model name, pickers, links. */
-  accent: "#50c878", // Emerald — the gemstone's canonical hex
-  /** Main brand hero: the wordmark, prompt marker, borders. */
+  /** Interactive chrome: dialog borders, model name, pickers, list selection. */
+  accent: "#c2c4c1", // light neutral gray — NOT green
+  /** The one deliberate green: wordmark, "●"/"✻" voice marks, diff additions, code keywords. */
   accentBright: "#007a54", // Dark Jade
-  /** Secondary/meta text — true neutral gray, no green cast. */
+  /** Secondary/meta text — dark neutral gray. */
   dim: "#6e756f",
-  /** Success / done — CSS MediumSeaGreen. */
-  ok: "#3cb371",
+  /** Success / done / accept-mode — near-white, brightest neutral (matches fg). */
+  ok: "#f3f3f1",
   /** Warnings, in-progress, queued — golden (ansiBrightYellow), kept functional. */
   warn: "#face2f",
   /** Errors and destructive hints — rust red (ansiRed), kept functional. */
   error: "#cc371e",
-  /** Plan mode, section headers, reasoning — CSS SeaGreen, a third hue via undertone, not tint. */
-  magenta: "#2e8b57",
+  /** Plan mode, section headers, reasoning — medium neutral gray, a third step, not a hue. */
+  magenta: "#8a8d8a",
   /** Code accents (params, punctuation warmth) — soft warm white-gray, no green. */
   orange: "#d6d6ce",
   /** Default foreground — true near-white, no green cast. */
@@ -36,15 +35,15 @@ export const C = {
   heroGradient: ["#50c878", "#007a54", "#046307"] as readonly string[],
 };
 
-/** Same roles re-picked for white/light terminal backgrounds. */
+/** Same roles re-picked for white/light terminal backgrounds (grayscale steps inverted: darker = more prominent on white). */
 const LIGHT: typeof C = {
-  accent: "#2e8b57", // SeaGreen — deep enough to read on white
-  accentBright: "#045c3d", // deepened Dark Jade for white
+  accent: "#2e312e", // dark neutral gray
+  accentBright: "#045c3d", // deepened Dark Jade for white — still the one green
   dim: "#55605a",
-  ok: "#2f8f5f", // deepened MediumSeaGreen
+  ok: "#121212", // matches fg — brightest/most-prominent neutral on white is near-black
   warn: "#9a7b00",
   error: "#b32e14",
-  magenta: "#355e3b", // Hunter Green
+  magenta: "#454845", // medium neutral gray, between accent and dim
   orange: "#34342e", // dark warm-neutral ink — white itself won't show on white
   fg: "#121212", // true near-black ink, no green cast
   heroGradient: ["#2e8b57", "#045c3d", "#021f16"] as readonly string[],

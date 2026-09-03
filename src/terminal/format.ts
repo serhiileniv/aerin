@@ -29,7 +29,7 @@ export function colorizeDiff(diff: string): string {
   return diff
     .split("\n")
     .map((line) => {
-      const c = `38;2;${rgbOf(line.startsWith("+") ? C.ok : line.startsWith("-") ? C.error : C.dim)}`;
+      const c = `38;2;${rgbOf(line.startsWith("+") ? C.accentBright : line.startsWith("-") ? C.error : C.dim)}`;
       return color ? `  \x1b[${c}m${line}\x1b[0m` : `  ${line}`;
     })
     .join("\n");

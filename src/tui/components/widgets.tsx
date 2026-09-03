@@ -289,7 +289,7 @@ export function LineInput(props: {
         {!value && props.placeholder ? (
           <>
             {props.active ? (
-              <Text backgroundColor={C.accentBright} color="#000000">
+              <Text backgroundColor={C.fg} color="#000000">
                 {props.placeholder[0] ?? " "}
               </Text>
             ) : null}
@@ -301,7 +301,7 @@ export function LineInput(props: {
           <>
             <Text>{before}</Text>
             {props.active ? (
-              <Text backgroundColor={C.accentBright} color="#000000">
+              <Text backgroundColor={C.fg} color="#000000">
                 {at}
               </Text>
             ) : (
@@ -327,7 +327,7 @@ export function Spinner(props: { label: string; since?: number }): React.ReactEl
   return (
     <Text color={C.dim}>
       {/* Neon pulse: the glyph flickers pink ↔ synth purple. */}
-      <Text color={frame % 2 === 0 ? C.accentBright : C.magenta}>{SPINNER_FRAMES[frame]}</Text> {props.label}
+      <Text color={frame % 2 === 0 ? C.fg : C.dim}>{SPINNER_FRAMES[frame]}</Text> {props.label}
       {elapsed > 0 ? ` · ${elapsed}s` : ""}
     </Text>
   );
