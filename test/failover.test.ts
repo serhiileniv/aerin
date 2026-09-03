@@ -118,3 +118,29 @@ describe("provider failover chain", () => {
     expect(err.message.toLowerCase()).toContain("api key");
   });
 });
+
+describe("manual /model switch mid-session", () => {
+  test("the new model receives the full prior conversation, not a fresh start", async () => {
+    const agent = makeAgent(mockModel([{ text: "hi, I am model A" }]), []);
+    for await (const _e of agent.send("remember the word PINEAPPLE")) void _e;
+
+    let capturedPrompt: unknown;
+    const modelB = mockModel([{ text: "hi, I am model B" }]) as unknown as {
+      doStream: (opts: { prompt: unknown }) => Promise<unknown>;
+    };
+    const realDoStream = modelB.doStream.bind(modelB);
+    modelB.doStream = async (opts) => {
+      capturedPrompt = opts.prompt;
+      return realDoStream(opts);
+    };
+    agent.setModel(modelB as unknown as LanguageModel, "mock/b");
+    expect(agent.modelId).toBe("mock/b");
+
+    for await (const _e of agent.send("what word did I say?")) void _e;
+
+    // Model B's very first request must already carry model A's turn.
+    const serialized = JSON.stringify(capturedPrompt);
+    expect(serialized).toContain("PINEAPPLE");
+    expect(serialized).toContain("hi, I am model A");
+  });
+});

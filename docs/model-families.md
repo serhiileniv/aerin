@@ -12,3 +12,6 @@ Aerin keeps one shared base system prompt (written against Claude) and appends a
 
 ## The wiring detail that matters
 The addendum is resolved **at request time** from the current model id — not baked in at startup. So `/model` switches swap the guidance with the model, [provider failover](provider-failover.md) gets the fallback's guidance mid-turn, and sub-agents on a cheaper `subagentModel` get guidance for *their* model, not the parent's.
+
+## What a `/model` switch does and doesn't touch
+`Agent.setModel()` (`src/core/agent.ts`) only replaces which model the next turn calls — it never touches `this.messages`. The full conversation history rides along unchanged, so the new model gets it as context on its very next turn, same as everything else that's model-dependent (family guidance above, cache breakpoints, cost estimation, the compaction threshold) since those all read the *current* active model, not the one the session started with.
