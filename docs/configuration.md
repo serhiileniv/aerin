@@ -36,3 +36,13 @@ CLI flags that interact: `--yolo` (auto-approve everything not denied), `--allow
 ```
 
 `/connect <provider> <api-key> [baseURL] [openai|anthropic]` sets `protocol` interactively too (`headers` stays config-file-only — not worth a multi-key-value prompt).
+
+## New providers and models require no code changes
+
+Three layers, each solving a different piece of "aerin doesn't know about this yet":
+
+1. **New models on a provider you're already connected to** — `/model` and `/connect` query the provider's own `/models` endpoint live (`providers/list-models.ts`), every time the picker opens. A provider shipping a new model shows up on your next `/model`, nothing to update.
+2. **A provider not yet curated, but present in [models.dev](https://models.dev)** — `/connect`'s picker has an "All providers — models.dev" section (`providers/modelsdev.ts`) sourced from that community registry (173+ entries at last count, refreshed daily), covering anything reachable through the OpenAI-compatible or Anthropic Messages protocol. No code change, no aerin release needed for a provider to appear there — it appears the day models.dev lists it.
+3. **Anything else** — `/connect`'s "Custom endpoint…" flow (or hand-editing `providers.<name>` in config) takes any `baseURL` + `protocol` + `headers`, curated or not.
+
+`src/providers/catalog.ts`'s `PROVIDER_CATALOG` is only the "featured" shortcut on top of that — providers common enough to deserve a name and a preset `baseURL` instead of the custom-endpoint flow. It's small and hand-picked on purpose (currently: the 5 native SDKs, major OpenAI-compatible platforms, and several Chinese providers — Alibaba/Qwen, SiliconFlow, Volcengine/Doubao, StepFun, SenseNova, Tencent Hunyuan, MiniMax); everything else routes through layers 2 and 3 automatically.

@@ -105,7 +105,7 @@ Global: `~/.config/aerin/config.json` (platform-appropriate). Per-project: `.aer
 }
 ```
 
-Any provider name that isn't built in but has a `baseURL` is served through the OpenAI-compatible adapter — one mechanism covers DeepSeek, Kimi, Groq, Cerebras, Together, Fireworks, LM Studio, vLLM, and friends.
+Any provider name that isn't built in but has a `baseURL` is routable — OpenAI-compatible by default, or `"protocol": "anthropic"` for endpoints speaking the Anthropic Messages API instead — covering DeepSeek, Kimi, Groq, Cerebras, Together, Fireworks, LM Studio, vLLM, MiniMax, and friends. `/connect`'s picker adds a curated list (Chinese platforms included: Alibaba/Qwen, SiliconFlow, Volcengine, StepFun, SenseNova, Tencent Hunyuan, MiniMax, …) plus a live "all providers" section pulled from [models.dev](https://models.dev)'s 170+-entry registry — new providers and models need no aerin update, see [docs/configuration.md](docs/configuration.md#new-providers-and-models-require-no-code-changes).
 
 Never put API keys in the *project* config — it gets committed. Use env vars, the global config, or `/connect` inside aerin.
 

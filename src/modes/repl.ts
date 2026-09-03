@@ -200,11 +200,13 @@ export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise
             stdout.write(`  ✗ that looks like a ${looks} key, not ${prov} — nothing saved. Use /connect ${looks}\n`);
             return undefined;
           }
-          const protocol = protoArg === "openai" || protoArg === "anthropic" ? protoArg : undefined;
+          let protocol: "openai" | "anthropic" | undefined =
+            protoArg === "openai" || protoArg === "anthropic" ? protoArg : undefined;
           if (protoArg && !protocol) {
             stdout.write(`  ✗ unknown protocol "${protoArg}" — expected "openai" or "anthropic"\n`);
             return undefined;
           }
+          protocol ??= catalogEntry(prov)?.protocol;
           const baseURL = url ?? catalogEntry(prov)?.baseURL;
           await persistProviderKey(prov, key, baseURL, protocol);
           setup.config.providers = {

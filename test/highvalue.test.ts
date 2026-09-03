@@ -147,6 +147,23 @@ describe("provider catalog", () => {
     }) as { modelId?: string };
     expect(model.modelId).toBe("llama-3.3-70b-versatile");
   });
+
+  test("catalog entry ids are unique", async () => {
+    const { PROVIDER_CATALOG } = await import("../src/providers/catalog.js");
+    const ids = PROVIDER_CATALOG.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test("MiniMax's curated protocol carries through connect into resolveModel", async () => {
+    const { catalogEntry } = await import("../src/providers/catalog.js");
+    const minimax = catalogEntry("minimax");
+    expect(minimax?.protocol).toBe("anthropic");
+    const model = resolveModel("minimax/MiniMax-Text-01", {
+      providers: { minimax: { baseURL: minimax!.baseURL!, apiKey: "mm-test", protocol: minimax!.protocol } },
+    }) as { provider?: string; modelId?: string };
+    expect(model.provider).toBe("anthropic.messages");
+    expect(model.modelId).toBe("MiniMax-Text-01");
+  });
 });
 
 describe("keyLooksLike", () => {
@@ -247,17 +264,20 @@ describe("models.dev capability registration", () => {
 });
 
 describe("models.dev provider catalog", () => {
-  test("parses only openai-compatible entries with endpoints", async () => {
+  test("parses openai-compatible and Anthropic-adapter entries with endpoints, skips the rest", async () => {
     const { parseProviderCatalog } = await import("../src/providers/modelsdev.js");
     const out = parseProviderCatalog({
       good: { npm: "@ai-sdk/openai-compatible", api: "https://api.good.ai/v1", name: "Good AI", env: "GOOD_KEY" },
       envlist: { npm: "@ai-sdk/openai-compatible", api: "https://e.ai/v1", env: ["E_KEY", "ALT"] },
-      wrongsdk: { npm: "@ai-sdk/anthropic", api: "https://x.ai/v1" },
+      claudeish: { npm: "@ai-sdk/anthropic", api: "https://x.ai/v1", name: "Claudeish", env: "X_KEY" },
+      unroutable: { npm: "@ai-sdk/cohere", api: "https://c.ai/v1" },
       noapi: { npm: "@ai-sdk/openai-compatible" },
     });
-    expect(out.map((p) => p.id).sort()).toEqual(["envlist", "good"]);
+    expect(out.map((p) => p.id).sort()).toEqual(["claudeish", "envlist", "good"]);
     expect(out.find((p) => p.id === "good")?.envVar).toBe("GOOD_KEY");
     expect(out.find((p) => p.id === "envlist")?.envVar).toBe("E_KEY");
+    expect(out.find((p) => p.id === "good")?.protocol).toBeUndefined();
+    expect(out.find((p) => p.id === "claudeish")?.protocol).toBe("anthropic");
   });
 });
 

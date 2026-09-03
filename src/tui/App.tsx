@@ -121,7 +121,7 @@ type ConnectProtocol = "openai" | "anthropic";
 
 type ConnectState =
   | { step: "pick"; dynamic: import("../providers/modelsdev.js").ModelsDevProvider[] }
-  | { step: "key"; id: string; label: string; baseURL?: string }
+  | { step: "key"; id: string; label: string; baseURL?: string; protocol?: ConnectProtocol }
   | { step: "custom-name" }
   | { step: "custom-protocol"; id: string }
   | { step: "custom-url"; id: string; protocol: ConnectProtocol }
@@ -1229,7 +1229,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               ...connect.dynamic
                 .filter((d) => !catalogEntry(d.id))
                 .map((d) => ({
-                  label: `${d.name}${setup.config.providers?.[d.id]?.apiKey ? "  ✓ connected" : ""}`,
+                  label: `${d.name}${d.protocol === "anthropic" ? "  · anthropic API" : ""}${setup.config.providers?.[d.id]?.apiKey ? "  ✓ connected" : ""}`,
                   value: `dyn:${d.id}`,
                 })),
             ]}
@@ -1242,14 +1242,14 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               if (v.startsWith("dyn:")) {
                 const d = connect.dynamic.find((x) => `dyn:${x.id}` === v);
                 if (!d) return setConnect(null);
-                setConnect({ step: "key", id: d.id, label: d.name, baseURL: d.baseURL });
+                setConnect({ step: "key", id: d.id, label: d.name, baseURL: d.baseURL, ...(d.protocol ? { protocol: d.protocol } : {}) });
                 return;
               }
               const entry = catalogEntry(v);
               if (!entry) return setConnect(null);
               if (!entry.needsKey) {
                 setConnect(null);
-                void saveConnection(entry.id, "", entry.baseURL);
+                void saveConnection(entry.id, "", entry.baseURL, entry.protocol);
                 return;
               }
               setConnect({
@@ -1257,6 +1257,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
                 id: entry.id,
                 label: entry.name,
                 ...(entry.baseURL ? { baseURL: entry.baseURL } : {}),
+                ...(entry.protocol ? { protocol: entry.protocol } : {}),
               });
             }}
           />
@@ -1270,10 +1271,10 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             active={true}
             onSubmit={(raw) => {
               const key = raw.trim();
-              const { id, baseURL } = connect;
+              const { id, baseURL, protocol } = connect;
               setConnect(null);
               if (!key) return pushItem("info", "(connect cancelled)");
-              void saveConnection(id, key, baseURL);
+              void saveConnection(id, key, baseURL, protocol);
             }}
           />
         </Box>

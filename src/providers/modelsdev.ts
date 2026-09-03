@@ -42,19 +42,38 @@ export interface ModelsDevProvider {
   name: string;
   baseURL: string;
   envVar?: string;
+  /** Set when the registry lists this provider under the Anthropic adapter — omitted means OpenAI-compatible. */
+  protocol?: "anthropic";
 }
 
+/** Registry npm adapters aerin can actually speak, mapped to our protocol names. */
+const ROUTABLE_NPM: Record<string, "openai" | "anthropic"> = {
+  "@ai-sdk/openai-compatible": "openai",
+  "@ai-sdk/anthropic": "anthropic",
+};
+
 /**
- * Providers from the registry that are safely routable through aerin's
- * OpenAI-compatible adapter (they declare it as their npm adapter and expose
- * an API endpoint) — the /connect "all providers" catalog.
+ * Providers from the registry that are safely routable through one of
+ * aerin's two generic adapters (OpenAI-compatible or Anthropic Messages —
+ * they declare one of those as their npm adapter and expose an API endpoint)
+ * — the /connect "all providers" catalog. Registry entries on a dedicated
+ * SDK (Cohere, native Mistral/Groq/Cerebras clients, etc.) aren't included:
+ * their wire protocol isn't one aerin speaks, so listing them would just be
+ * a connect button that always fails.
  */
 export function parseProviderCatalog(data: ModelsDevData): ModelsDevProvider[] {
   const out: ModelsDevProvider[] = [];
   for (const [id, p] of Object.entries(data)) {
-    if (p.npm !== "@ai-sdk/openai-compatible" || !p.api) continue;
+    const protocol = p.npm ? ROUTABLE_NPM[p.npm] : undefined;
+    if (!protocol || !p.api) continue;
     const envVar = Array.isArray(p.env) ? p.env[0] : p.env;
-    out.push({ id, name: p.name ?? id, baseURL: p.api, ...(envVar ? { envVar } : {}) });
+    out.push({
+      id,
+      name: p.name ?? id,
+      baseURL: p.api,
+      ...(envVar ? { envVar } : {}),
+      ...(protocol === "anthropic" ? { protocol } : {}),
+    });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -12,8 +12,19 @@ export interface CatalogEntry {
   needsKey: boolean;
   /** Provider offers a usable free tier — surfaced in the model picker. */
   freeTier?: boolean;
+  /** Wire protocol when it isn't OpenAI-compatible (e.g. MiniMax speaks Anthropic Messages). */
+  protocol?: "openai" | "anthropic";
 }
 
+// Entries route through the OpenAI-compatible adapter by default (or the
+// Anthropic one when `protocol: "anthropic"`) — see providers/registry.ts.
+// Every baseURL/env pairing below is cross-checked against the models.dev
+// registry (the same source list-models.ts pulls live metadata from), using
+// the SAME id models.dev uses wherever one exists — that gets pricing/context
+// metadata for free with no alias wiring. Anything not curated here still
+// works: /connect's "All providers — models.dev" list (modelsdev.ts) surfaces
+// the rest of that registry automatically, and a fully custom name+baseURL
+// entry (optionally with `protocol`/`headers`) covers anything else.
 export const PROVIDER_CATALOG: CatalogEntry[] = [
   { id: "anthropic", name: "Anthropic (Claude)", needsKey: true },
   { id: "openai", name: "OpenAI (GPT)", needsKey: true },
@@ -29,6 +40,30 @@ export const PROVIDER_CATALOG: CatalogEntry[] = [
   { id: "cerebras", name: "Cerebras (ultra fast)", baseURL: "https://api.cerebras.ai/v1", needsKey: true, freeTier: true },
   { id: "zai", name: "Z.ai (GLM)", baseURL: "https://api.z.ai/api/paas/v4", needsKey: true },
   { id: "lmstudio", name: "LM Studio (local)", baseURL: "http://localhost:1234/v1", needsKey: false },
+
+  // Chinese model providers — the API landscape most likely to need a name
+  // aerin doesn't already know. "-cn" entries are the mainland-China domestic
+  // endpoint (often lower latency / no international billing needed); the
+  // bare id is the international one where the provider splits the two.
+  { id: "alibaba", name: "Alibaba Cloud (Qwen, international)", baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", needsKey: true },
+  { id: "alibaba-cn", name: "Alibaba Cloud (Qwen, China)", baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", needsKey: true },
+  { id: "siliconflow", name: "SiliconFlow", baseURL: "https://api.siliconflow.com/v1", needsKey: true },
+  { id: "siliconflow-cn", name: "SiliconFlow (China)", baseURL: "https://api.siliconflow.cn/v1", needsKey: true },
+  { id: "volcengine", name: "Volcengine Ark (ByteDance/Doubao)", baseURL: "https://ark.cn-beijing.volces.com/api/v3", needsKey: true },
+  { id: "stepfun", name: "StepFun (China)", baseURL: "https://api.stepfun.com/v1", needsKey: true },
+  { id: "sensenova", name: "SenseNova (China)", baseURL: "https://token.sensenova.cn/v1", needsKey: true },
+  { id: "tencent-tokenhub", name: "Tencent Hunyuan (TokenHub)", baseURL: "https://tokenhub.tencentmaas.com/v1", needsKey: true },
+  // MiniMax speaks the Anthropic Messages API, not OpenAI's — a real-world
+  // case for the protocol switch above, not a special case in the code.
+  { id: "minimax", name: "MiniMax", baseURL: "https://api.minimax.io/anthropic/v1", needsKey: true, protocol: "anthropic" },
+
+  // Other inference platforms not already covered.
+  { id: "novita-ai", name: "Novita AI", baseURL: "https://api.novita.ai/openai", needsKey: true },
+  { id: "nebius", name: "Nebius AI Studio", baseURL: "https://api.tokenfactory.nebius.com/v1", needsKey: true },
+  { id: "baseten", name: "Baseten", baseURL: "https://inference.baseten.co/v1", needsKey: true },
+  { id: "friendli", name: "Friendli", baseURL: "https://api.friendli.ai/serverless/v1", needsKey: true },
+  { id: "upstage", name: "Upstage (Solar)", baseURL: "https://api.upstage.ai/v1/solar", needsKey: true },
+  { id: "vllm", name: "vLLM (local/self-hosted)", baseURL: "http://localhost:8000/v1", needsKey: false },
 ];
 
 export function catalogEntry(id: string): CatalogEntry | undefined {
