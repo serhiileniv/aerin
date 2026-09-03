@@ -333,7 +333,7 @@ export function Spinner(props: { label: string; since?: number }): React.ReactEl
   );
 }
 
-/** Unified-diff renderer: green additions, red deletions, cyan hunk headers. */
+/** Unified-diff renderer: green additions, red deletions, gray hunk headers. */
 export function DiffText(props: { diff: string; maxLines?: number }): React.ReactElement {
   const lines = props.diff.split("\n").slice(0, props.maxLines ?? 30);
   return (
@@ -343,7 +343,7 @@ export function DiffText(props: { diff: string; maxLines?: number }): React.Reac
           key={i}
           color={
             line.startsWith("+") && !line.startsWith("+++")
-              ? C.ok
+              ? C.accentBright
               : line.startsWith("-") && !line.startsWith("---")
                 ? C.error
                 : line.startsWith("@@")

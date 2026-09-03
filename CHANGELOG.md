@@ -2,6 +2,10 @@
 
 Aerin is developed *with* aerin-style agents: the overwhelming majority of the code since v0.0.90 was written by a coding agent under human direction. We report it per release, Aider-style.
 
+## Unreleased
+- **Fixed: diff additions weren't green**: the permission-preview diff widget (the one actually shown when the agent proposes an edit) colored `+` lines with the `ok` role, which happened to equal plain body-text white — so deletions were red but additions were invisible as a color. `format.ts` and the markdown syntax theme already used the one accent green here; the diff widget was the one spot missed in that pass. Verified live: `+`/`-` lines now decode to accentBright green / error red, like Claude Code.
+- **Fixed: plan mode and accept mode read as the same color**: `ok` (accept mode) was set to the same hex as `fg` (plain body text), so the accept-mode input border and status text didn't visually register as "colored" at all next to plan mode's genuinely gray magenta. `ok` now sits as its own distinct grayscale step between magenta and accent — idle/plan/accept/working are four visually distinct border colors again. Verified live via shift+tab cycling: dim → magenta → ok, each decodes to a different hex.
+
 ## 0.0.119 — 2026-09-03
 - **Terminal tab title simplified**: was `✦ aerin — <dirname>` at rest and `✶ <your prompt, truncated> — aerin` while a turn ran; now always just `aerin`.
 - **Fixed: assistant replies went ragged on terminal resize**: markdown was hard-wrapped to the terminal width once, at push time, and baked into the cached transcript text — resizing afterward left old replies double-wrapped and jagged (Ink re-wrapping already-hard-wrapped lines). Assistant items now keep their raw markdown alongside the rendered text, and a resize re-renders every cached reply at the new width. Verified live: shrinking and re-widening a real reply now reflows cleanly both ways.

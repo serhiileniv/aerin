@@ -2,11 +2,14 @@
  * Aerin's color theme: Jade — exactly ONE green (accentBright, Dark Jade
  * #007a54) used sparingly at meaningful moments: the wordmark/banner, the
  * "●"/"✻" marks that identify aerin's own voice, diff additions, and code
- * keywords. Every other role is pure grayscale — a ramp from near-black
- * (dim) through mid-grays (magenta, accent) to near-white (fg/ok) — so the
- * app reads as black-and-white with one deliberate accent, not a wash of
- * green. `accent`, `ok`, and `magenta` keep their historical names (UI code
- * refers to roles, never raw colors) but hold neutral grays now, not hues.
+ * keywords. Every other role is pure grayscale — five distinct steps from
+ * near-black (dim) up through magenta, ok, and accent to near-white (fg) —
+ * so the app reads as black-and-white with one deliberate accent, not a
+ * wash of green. `accent`, `ok`, and `magenta` keep their historical names
+ * (UI code refers to roles, never raw colors) but hold neutral grays now,
+ * not hues. Each step must stay visually distinct from its neighbors —
+ * plan mode (magenta) and accept mode (ok) are both real states the input
+ * border signals, and easy to confuse if they're too close in lightness.
  * Red stays as the functional signal color for errors — the one deliberate
  * exception to "grayscale everywhere else". There is no amber/yellow: a
  * working/in-progress state uses the one accent green instead.
@@ -20,8 +23,8 @@ export const C = {
   accentBright: "#007a54", // Dark Jade
   /** Secondary/meta text — dark neutral gray. */
   dim: "#6e756f",
-  /** Success / done / accept-mode — near-white, brightest neutral (matches fg). */
-  ok: "#f3f3f1",
+  /** Success / done / accept-mode — a distinct step between magenta and accent, not fg. */
+  ok: "#a5a8a5",
   /** Errors and destructive hints — rust red (ansiRed), kept functional. */
   error: "#cc371e",
   /** Plan mode, section headers, reasoning — medium neutral gray, a third step, not a hue. */
@@ -39,7 +42,7 @@ const LIGHT: typeof C = {
   accent: "#2e312e", // dark neutral gray
   accentBright: "#045c3d", // deepened Dark Jade for white — still the one green
   dim: "#55605a",
-  ok: "#121212", // matches fg — brightest/most-prominent neutral on white is near-black
+  ok: "#393c39", // distinct step between accent and magenta, not fg
   error: "#b32e14",
   magenta: "#454845", // medium neutral gray, between accent and dim
   orange: "#34342e", // dark warm-neutral ink — white itself won't show on white
