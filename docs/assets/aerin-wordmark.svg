@@ -8,11 +8,11 @@
     }
   </style>
   <!-- The app's startup banner: ANSI Shadow wordmark, SUNSET row shades
-       (bright pink-red at the top melting into magenta) from src/tui/App.tsx. -->
-  <text xml:space="preserve" x="4" y="18" fill="#ff5577"> █████╗ ███████╗██████╗ ██╗███╗   ██╗</text>
-  <text xml:space="preserve" x="4" y="36" fill="#f7446e">██╔══██╗██╔════╝██╔══██╗██║████╗  ██║</text>
-  <text xml:space="preserve" x="4" y="54" fill="#ee3366">███████║█████╗  ██████╔╝██║██╔██╗ ██║</text>
-  <text xml:space="preserve" x="4" y="72" fill="#e04477">██╔══██║██╔══╝  ██╔══██╗██║██║╚██╗██║</text>
-  <text xml:space="preserve" x="4" y="90" fill="#d05590">██║  ██║███████╗██║  ██║██║██║ ╚████║</text>
-  <text xml:space="preserve" x="4" y="108" fill="#c055a9">╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝</text>
+       (bright mint-jade at the top melting into near-black emerald) from src/tui/App.tsx. -->
+  <text xml:space="preserve" x="4" y="18" fill="#5fe8b0"> █████╗ ███████╗██████╗ ██╗███╗   ██╗</text>
+  <text xml:space="preserve" x="4" y="36" fill="#3fdda0">██╔══██╗██╔════╝██╔══██╗██║████╗  ██║</text>
+  <text xml:space="preserve" x="4" y="54" fill="#22cf8f">███████║█████╗  ██████╔╝██║██╔██╗ ██║</text>
+  <text xml:space="preserve" x="4" y="72" fill="#0fbd82">██╔══██║██╔══╝  ██╔══██╗██║██║╚██╗██║</text>
+  <text xml:space="preserve" x="4" y="90" fill="#03a271">██║  ██║███████╗██║  ██║██║██║ ╚████║</text>
+  <text xml:space="preserve" x="4" y="108" fill="#00875f">╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝</text>
 </svg>

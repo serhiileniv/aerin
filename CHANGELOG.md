@@ -2,6 +2,10 @@
 
 Aerin is developed *with* aerin-style agents: the overwhelming majority of the code since v0.0.90 was written by a coding agent under human direction. We report it per release, Aider-style.
 
+## Unreleased
+- **Custom provider protocol + headers**: `providers.<name>.protocol` (`"openai"` default | `"anthropic"`) lets a custom `baseURL` entry speak the Anthropic Messages API instead of OpenAI-compatible; `providers.<name>.headers` adds arbitrary request headers for gateways that don't authenticate with a plain Bearer key. Wired through `/connect` (both TUI wizard and REPL) and model listing.
+- **Jade theme**: retired the pink-red/magenta "Pop N' Lock" look for a black/white/emerald palette (`src/tui/theme.ts` — the one-file retheme point), including the startup banner gradient, wordmark SVG, and README badge. Red/amber stay as functional error/warning colors.
+
 ## 0.0.113 — 2026-07-23
 - Colorful centered AERIN wordmark (the app's SUNSET palette) as an SVG in the README.
 
