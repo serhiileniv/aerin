@@ -13,7 +13,7 @@ in ~9k lines of TypeScript with a <a href="docs/index.md">docs page per feature<
 <p align="center">
 <a href="https://github.com/Serhii-Leniv/aerin/actions/workflows/ci.yml"><img src="https://github.com/Serhii-Leniv/aerin/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 <a href="https://www.npmjs.com/package/aerin-agent"><img src="https://img.shields.io/npm/v/aerin-agent" alt="npm"></a>
-<a href=".github/workflows/ci.yml"><img src="https://img.shields.io/badge/src-%3C10k_lines,_CI--enforced-00c078" alt="line budget"></a>
+<a href=".github/workflows/ci.yml"><img src="https://img.shields.io/badge/src-%3C10k_lines,_CI--enforced-0f8f5c" alt="line budget"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT"></a>
 </p>
 

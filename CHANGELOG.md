@@ -2,6 +2,9 @@
 
 Aerin is developed *with* aerin-style agents: the overwhelming majority of the code since v0.0.90 was written by a coding agent under human direction. We report it per release, Aider-style.
 
+## Unreleased
+- **Jade theme, deepened**: the initial rebrand read as bright mint; the accent/hero greens are now a deeper, more saturated jade, secondary text and code-accent tones dropped their green cast for true neutral gray/white, and the startup banner + wordmark now fade toward near-black instead of staying pastel.
+
 ## 0.0.115 — 2026-09-03
 - **Custom provider protocol + headers**: `providers.<name>.protocol` (`"openai"` default | `"anthropic"`) lets a custom `baseURL` entry speak the Anthropic Messages API instead of OpenAI-compatible; `providers.<name>.headers` adds arbitrary request headers for gateways that don't authenticate with a plain Bearer key. Wired through `/connect` (both TUI wizard and REPL) and model listing.
 - **More curated providers, Chinese platforms included**: Alibaba Cloud (Qwen, intl + China), SiliconFlow (intl + China), Volcengine Ark (ByteDance/Doubao), StepFun, SenseNova, Tencent Hunyuan, MiniMax (its first Anthropic-protocol curated entry), plus Novita AI, Nebius, Baseten, Friendli, Upstage, and a `vllm` preset. `/connect`'s dynamic models.dev list now also surfaces Anthropic-protocol registry entries (previously OpenAI-compatible only), so a provider on either protocol appears without an aerin code change.

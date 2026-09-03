@@ -7,12 +7,14 @@
       white-space: pre;
     }
   </style>
-  <!-- The app's startup banner: ANSI Shadow wordmark, SUNSET row shades
-       (bright mint-jade at the top melting into near-black emerald) from src/tui/App.tsx. -->
-  <text xml:space="preserve" x="4" y="18" fill="#5fe8b0"> █████╗ ███████╗██████╗ ██╗███╗   ██╗</text>
-  <text xml:space="preserve" x="4" y="36" fill="#3fdda0">██╔══██╗██╔════╝██╔══██╗██║████╗  ██║</text>
-  <text xml:space="preserve" x="4" y="54" fill="#22cf8f">███████║█████╗  ██████╔╝██║██╔██╗ ██║</text>
-  <text xml:space="preserve" x="4" y="72" fill="#0fbd82">██╔══██║██╔══╝  ██╔══██╗██║██║╚██╗██║</text>
-  <text xml:space="preserve" x="4" y="90" fill="#03a271">██║  ██║███████╗██║  ██║██║██║ ╚████║</text>
-  <text xml:space="preserve" x="4" y="108" fill="#00875f">╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝</text>
+  <!-- The app's startup banner: ANSI Shadow wordmark, deep-jade row shades
+       from src/tui/App.tsx's SUNSET, held back from near-black (unlike the
+       terminal version) so it stays readable with no background fill on
+       both light and dark GitHub pages. -->
+  <text xml:space="preserve" x="4" y="18" fill="#2fa96c"> █████╗ ███████╗██████╗ ██╗███╗   ██╗</text>
+  <text xml:space="preserve" x="4" y="36" fill="#269c63">██╔══██╗██╔════╝██╔══██╗██║████╗  ██║</text>
+  <text xml:space="preserve" x="4" y="54" fill="#1d8f59">███████║█████╗  ██████╔╝██║██╔██╗ ██║</text>
+  <text xml:space="preserve" x="4" y="72" fill="#147f4c">██╔══██║██╔══╝  ██╔══██╗██║██║╚██╗██║</text>
+  <text xml:space="preserve" x="4" y="90" fill="#0f6f45">██║  ██║███████╗██║  ██║██║██║ ╚████║</text>
+  <text xml:space="preserve" x="4" y="108" fill="#0a5e3a">╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝</text>
 </svg>
