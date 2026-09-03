@@ -31,6 +31,18 @@ export interface DiscoveryResult {
 
 const FETCH_TIMEOUT_MS = 10_000;
 
+/**
+ * Model-id substrings that mark a non-chat model — embeddings, rerankers,
+ * moderation/safety classifiers, audio/speech/voice, image or video
+ * generation, realtime-voice variants — applied to EVERY provider's list
+ * (built-in and custom alike), not just the ones with hand-rolled filters.
+ * A connected key shows only models that can actually drive the agent.
+ * Excludes "vision": a `-vision` suffix usually marks a real multimodal
+ * *chat* model (image understanding), not an image generator.
+ */
+const NON_CHAT_MODEL_PATTERN =
+  /embedding|embed|rerank|moderation|guard|safety|whisper|speech|\btts\b|audio|voice|transcribe|realtime|dall-e|\bimage\b|imagine|\bvideo\b|\baqa\b|computer-use|antigravity/i;
+
 async function fetchJson(url: string, headers: Record<string, string> = {}): Promise<unknown> {
   const res = await fetch(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -60,10 +72,11 @@ const listers: Record<string, Lister> = {
     const data = (await fetchJson("https://api.openai.com/v1/models", {
       Authorization: `Bearer ${key}`,
     })) as { data?: { id: string }[] };
-    // The OpenAI list includes embeddings/audio/etc — keep chat-capable families.
+    // The OpenAI list mixes in base/fine-tuning/other families — keep chat ones;
+    // the shared NON_CHAT_MODEL_PATTERN filter (applied centrally) does the rest.
     return (data.data ?? [])
       .map((m) => m.id)
-      .filter((id) => /^(gpt|o[0-9]|chatgpt)/.test(id) && !/embedding|audio|tts|whisper|image|dall-e|realtime|transcribe/.test(id))
+      .filter((id) => /^(gpt|o[0-9]|chatgpt)/.test(id))
       .map((id) => ({ id }));
   },
 
@@ -73,14 +86,12 @@ const listers: Record<string, Lister> = {
     const data = (await fetchJson(
       `https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=${encodeURIComponent(key)}`,
     )) as { models?: { name: string; supportedGenerationMethods?: string[]; inputTokenLimit?: number }[] };
+    // "generateContent" support doesn't imply multiturn chat — computer-use
+    // and antigravity previews list here but reject a normal chat turn (zero
+    // free quota / "Multiturn chat is not enabled"); the shared
+    // NON_CHAT_MODEL_PATTERN filter (applied centrally) catches those too.
     return (data.models ?? [])
       .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
-      .filter((m) => !/embedding|aqa|tts|image/.test(m.name))
-      // "generateContent" support doesn't imply multiturn chat: computer-use
-      // and antigravity previews list here but reject a normal chat turn
-      // (zero free quota / "Multiturn chat is not enabled") — not usable as
-      // a driving model regardless of tier, so keep them out of the picker.
-      .filter((m) => !/computer-use|antigravity/.test(m.name))
       .map((m) => ({
         id: m.name.replace(/^models\//, ""),
         ...(m.inputTokenLimit ? { contextWindow: m.inputTokenLimit } : {}),
@@ -182,7 +193,8 @@ export async function listProviderModels(
   const lister =
     listers[provider] ?? (config.providers?.[provider]?.baseURL ? customListerFor(provider) : undefined);
   if (!lister) return undefined;
-  return (await lister(config)) ?? undefined;
+  const bare = await lister(config);
+  return bare?.filter((m) => !NON_CHAT_MODEL_PATTERN.test(m.id));
 }
 
 export async function discoverModels(config: AerinConfig): Promise<DiscoveryResult> {
@@ -206,10 +218,13 @@ export async function discoverModels(config: AerinConfig): Promise<DiscoveryResu
         const bare = await list(config);
         if (!bare) return; // no key / not running — silently skipped
         for (const m of bare) {
+          // Non-chat model, by name — applies to every provider, catches what
+          // the registry doesn't track (e.g. xAI's grok-imagine-image/video).
+          if (NON_CHAT_MODEL_PATTERN.test(m.id)) continue;
           const fullId = `${provider}/${m.id}`;
           const known = knownModelInfo(fullId);
           // An agent needs tool calling — hide models the registry marks as
-          // incapable (whisper, TTS, guard classifiers). Unknown = keep.
+          // incapable, when the name alone didn't already give it away.
           if (known?.toolCall === false) continue;
           // "free" is shown only for genuinely $0 pricing (formatModelLabel);
           // provider-level free tiers are indicated in /connect and the meter.

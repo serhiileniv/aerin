@@ -207,30 +207,88 @@ describe("provider catalog", () => {
       expect(model.modelId).toBe(modelId);
     }
   });
+
+  test("aihubmix resolves", async () => {
+    const { catalogEntry } = await import("../src/providers/catalog.js");
+    const entry = catalogEntry("aihubmix");
+    expect(entry?.baseURL).toBe("https://aihubmix.com/v1");
+    const model = resolveModel("aihubmix/xiaomi-mimo-v2.5-free", {
+      providers: { aihubmix: { baseURL: entry!.baseURL!, apiKey: "test-key" } },
+    }) as { modelId?: string };
+    expect(model.modelId).toBe("xiaomi-mimo-v2.5-free");
+  });
+
+  test("zhipuai-cn shares zai's models.dev pricing via alias, including the free flash variants", async () => {
+    const { catalogEntry } = await import("../src/providers/catalog.js");
+    const { registerFromRegistry } = await import("../src/providers/modelsdev.js");
+    const { estimateCostUsd } = await import("../src/providers/models.js");
+    const entry = catalogEntry("zhipuai-cn");
+    expect(entry?.baseURL).toBe("https://open.bigmodel.cn/api/paas/v4");
+
+    registerFromRegistry(
+      { zhipuai: { models: { "glm-4.7-flash": { cost: { input: 0, output: 0 } } } } },
+      ["zhipuai-cn"],
+    );
+    expect(estimateCostUsd("zhipuai-cn/glm-4.7-flash", 1000, 1000)).toBe(0);
+
+    const model = resolveModel("zhipuai-cn/glm-4.7-flash", {
+      providers: { "zhipuai-cn": { baseURL: entry!.baseURL!, apiKey: "test-key" } },
+    }) as { modelId?: string };
+    expect(model.modelId).toBe("glm-4.7-flash");
+  });
 });
 
-describe("google model listing", () => {
-  test("filters out multiturn-incapable previews (computer-use, antigravity) alongside embeddings/tts/image", async () => {
-    const { listProviderModels } = await import("../src/providers/list-models.js");
+describe("non-chat model filtering", () => {
+  async function withMockedFetch<T>(body: unknown, fn: () => Promise<T>): Promise<T> {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async () =>
-      new Response(
-        JSON.stringify({
-          models: [
-            { name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] },
-            { name: "models/gemini-2.5-computer-use-preview-10-2025", supportedGenerationMethods: ["generateContent"] },
-            { name: "models/antigravity-preview-05-2026", supportedGenerationMethods: ["generateContent"] },
-            { name: "models/text-embedding-004", supportedGenerationMethods: ["generateContent"] },
-          ],
-        }),
-        { status: 200 },
-      )) as unknown as typeof fetch;
+    globalThis.fetch = (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch;
     try {
-      const models = await listProviderModels("google", { providers: { google: { apiKey: "test-key" } } });
-      expect(models?.map((m) => m.id)).toEqual(["gemini-2.5-flash"]);
+      return await fn();
     } finally {
       globalThis.fetch = originalFetch;
     }
+  }
+
+  test("google: filters out multiturn-incapable previews (computer-use, antigravity) alongside embeddings/tts/image", async () => {
+    const { listProviderModels } = await import("../src/providers/list-models.js");
+    const models = await withMockedFetch(
+      {
+        models: [
+          { name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] },
+          { name: "models/gemini-2.5-computer-use-preview-10-2025", supportedGenerationMethods: ["generateContent"] },
+          { name: "models/antigravity-preview-05-2026", supportedGenerationMethods: ["generateContent"] },
+          { name: "models/text-embedding-004", supportedGenerationMethods: ["generateContent"] },
+        ],
+      },
+      () => listProviderModels("google", { providers: { google: { apiKey: "test-key" } } }),
+    );
+    expect(models?.map((m) => m.id)).toEqual(["gemini-2.5-flash"]);
+  });
+
+  test("xai: filters out image/video generation models (grok-imagine-*), keeps real chat models", async () => {
+    const { listProviderModels } = await import("../src/providers/list-models.js");
+    const models = await withMockedFetch(
+      {
+        data: [
+          { id: "grok-4.6" },
+          { id: "grok-code" },
+          { id: "grok-imagine-image" },
+          { id: "grok-imagine-video" },
+          { id: "grok-imagine-image-2.0" },
+        ],
+      },
+      () => listProviderModels("xai", { providers: { xai: { apiKey: "test-key" } } }),
+    );
+    expect(models?.map((m) => m.id).sort()).toEqual(["grok-4.6", "grok-code"]);
+  });
+
+  test("filter applies to a fully custom provider too, not just built-ins", async () => {
+    const { listProviderModels } = await import("../src/providers/list-models.js");
+    const models = await withMockedFetch(
+      { data: [{ id: "big-chat-model" }, { id: "whisper-large-v3" }, { id: "text-embedding-3-small" }] },
+      () => listProviderModels("mygateway", { providers: { mygateway: { baseURL: "https://gw.example/v1", apiKey: "k" } } }),
+    );
+    expect(models?.map((m) => m.id)).toEqual(["big-chat-model"]);
   });
 });
 

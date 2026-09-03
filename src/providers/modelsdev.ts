@@ -18,6 +18,9 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const PROVIDER_ALIASES: Record<string, string[]> = {
   moonshot: ["moonshot", "moonshotai"],
   zai: ["zai", "zhipuai", "z-ai"],
+  // Same registry entry as "zai" above — the China domestic front door for
+  // the same models, so it shares the same pricing/context data.
+  "zhipuai-cn": ["zhipuai"],
   lmstudio: ["lmstudio"],
 };
 

@@ -39,6 +39,12 @@ export const PROVIDER_CATALOG: CatalogEntry[] = [
   { id: "fireworks", name: "Fireworks AI", baseURL: "https://api.fireworks.ai/inference/v1", needsKey: true },
   { id: "cerebras", name: "Cerebras (ultra fast)", baseURL: "https://api.cerebras.ai/v1", needsKey: true, freeTier: true },
   { id: "zai", name: "Z.ai (GLM)", baseURL: "https://api.z.ai/api/paas/v4", needsKey: true },
+  // Same company, domestic endpoint — z.ai is Zhipu's international front
+  // door, bigmodel.cn its China one, same split pattern as Alibaba/SiliconFlow
+  // above. Zhipu's own registry entry lists two genuinely free models here
+  // (glm-4.5-flash, glm-4.7-flash, $0/$0) — aliased in modelsdev.ts so both
+  // this entry and "zai" pick up that pricing automatically.
+  { id: "zhipuai-cn", name: "Zhipu AI / GLM (China, bigmodel.cn)", baseURL: "https://open.bigmodel.cn/api/paas/v4", needsKey: true },
   { id: "lmstudio", name: "LM Studio (local)", baseURL: "http://localhost:1234/v1", needsKey: false },
 
   // Chinese model providers — the API landscape most likely to need a name
@@ -64,6 +70,11 @@ export const PROVIDER_CATALOG: CatalogEntry[] = [
   { id: "friendli", name: "Friendli", baseURL: "https://api.friendli.ai/serverless/v1", needsKey: true },
   { id: "upstage", name: "Upstage (Solar)", baseURL: "https://api.upstage.ai/v1/solar", needsKey: true },
   { id: "vllm", name: "vLLM (local/self-hosted)", baseURL: "http://localhost:8000/v1", needsKey: false },
+  // Aggregator (like OpenRouter/SiliconFlow) with a published free-models
+  // page of its own — confirmed live via its docs, not models.dev (it ships
+  // its own dedicated SDK package there instead of an openai-compatible npm
+  // entry, so it doesn't surface in the dynamic /connect list either).
+  { id: "aihubmix", name: "AiHubMix (aggregator, incl. free models)", baseURL: "https://aihubmix.com/v1", needsKey: true },
 
   // Direct vendor endpoints for model families requested by name.
   { id: "nvidia", name: "NVIDIA NIM (Nemotron)", baseURL: "https://integrate.api.nvidia.com/v1", needsKey: true },
