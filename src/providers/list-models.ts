@@ -247,6 +247,18 @@ export async function discoverModels(config: AerinConfig): Promise<DiscoveryResu
   return { models, warnings };
 }
 
+/**
+ * Name-pattern heuristic for a provider's smaller/faster tier — mini, flash,
+ * lite, nano, small, haiku, turbo, fast, or a 1-9B parameter count in the id.
+ * No provider exposes a universal "size" field, so this is a guess from
+ * naming convention, not a guarantee — used only to build the model picker's
+ * Recommended section (a couple of fast, cheap, still tool-capable options
+ * per connected provider), never to hide anything from the full list.
+ */
+export function isSmallModel(modelId: string): boolean {
+  return /\b(mini|flash|lite|nano|small|haiku|turbo|fast)\b|\b[1-9]b\b/i.test(modelId);
+}
+
 export function formatModelLabel(m: DiscoveredModel, opts?: { stripProvider?: boolean }): string {
   const name = opts?.stripProvider ? m.id.slice(m.provider.length + 1) : m.id;
   const parts = [name];

@@ -21,7 +21,7 @@ import {
 import { allKnownModels, modelInfo } from "../providers/models.js";
 import { PROVIDERS, providersWithKeys, resolveApiKey } from "../providers/registry.js";
 import { PROVIDER_CATALOG, catalogEntry, keyLooksLike } from "../providers/catalog.js";
-import { discoverModels, formatModelLabel, listProviderModels, type DiscoveredModel } from "../providers/list-models.js";
+import { discoverModels, formatModelLabel, isSmallModel, listProviderModels, type DiscoveredModel } from "../providers/list-models.js";
 import { modelsDevProviders } from "../providers/modelsdev.js";
 import { VERSION } from "../version.js";
 import { SessionStore, type SessionSummary } from "../session/store.js";
@@ -82,7 +82,12 @@ interface TranscriptItem {
 /** Only this many trailing items are rendered live — everything above is clipped anyway. */
 const VIEWPORT_ITEMS = 150;
 
-/** Picker rows: a Recent section first (opencode-style), then one group per provider. */
+/**
+ * Picker rows: Recent (opencode-style), then Recommended — up to 2 small/
+ * fast/tool-capable models per connected provider (isSmallModel heuristic),
+ * so a fresh /model doesn't dump every model from every provider before you
+ * can find a quick default — then the full list, one group per provider.
+ */
 function buildPickerItems(
   models: DiscoveredModel[],
   recent: readonly string[],
@@ -99,11 +104,27 @@ function buildPickerItems(
       items.push({ label: (m ? formatModelLabel(m) : id) + mark(id), value: id });
     }
   }
-
   const inRecent = new Set(recentShown);
+
+  const recommendedByProvider = new Map<string, DiscoveredModel[]>();
+  for (const m of models) {
+    if (inRecent.has(m.id) || !isSmallModel(m.id)) continue;
+    const list = recommendedByProvider.get(m.provider) ?? [];
+    if (list.length < 2) {
+      list.push(m);
+      recommendedByProvider.set(m.provider, list);
+    }
+  }
+  const recommended = [...recommendedByProvider.values()].flat();
+  if (recommended.length > 0) {
+    items.push({ label: "Recommended — small, fast, tool-capable", value: "__header_recommended", header: true });
+    for (const m of recommended) items.push({ label: formatModelLabel(m) + mark(m.id), value: m.id });
+  }
+  const inRecommended = new Set(recommended.map((m) => m.id));
+
   let lastProvider = "";
   for (const m of models) {
-    if (inRecent.has(m.id)) continue; // already shown under Recent
+    if (inRecent.has(m.id) || inRecommended.has(m.id)) continue; // already shown above
     if (m.provider !== lastProvider) {
       lastProvider = m.provider;
       items.push({

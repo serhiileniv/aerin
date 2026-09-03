@@ -9,6 +9,7 @@ Aerin is developed *with* aerin-style agents: the overwhelming majority of the c
 - Zero-key onboarding message now points at OpenCode Zen alongside Ollama as a way to get free models without a local install.
 - **Non-chat models filtered everywhere, not just Google/OpenAI**: a shared name-based filter (embeddings, rerankers, moderation/safety, audio/speech/voice, image/video generation, realtime) now applies to every provider's model list, including xAI, Anthropic, OpenRouter, Ollama, and any custom endpoint — previously only OpenAI and Google had hand-rolled versions of this. Fixes xAI's `grok-imagine-image`/`grok-imagine-video` (and similar) cluttering the picker with models that can't drive the agent.
 - **GLM China endpoint + AiHubMix**: `zhipuai-cn` (bigmodel.cn, same models as the existing `zai`/z.ai entry, aliased for shared pricing — Zhipu's own registry lists `glm-4.5-flash`/`glm-4.7-flash` as genuinely free) and `aihubmix` (aggregator with its own published free-models page).
+- **Model picker "Recommended" section**: up to 2 small/fast models per connected provider (`isSmallModel` — a name heuristic: mini/flash/lite/nano/small/haiku/turbo/fast, or a 1-9B parameter count) surface above the full per-provider list, so `/model` doesn't dump every model from every connected provider before you can find a quick default. The full list is still there below, ungated — this only reorders what's on top.
 
 ## 0.0.117 — 2026-09-03
 *(0.0.116 got stuck mid-publish on the npm registry — accepted but never finalized — and is skipped; same content ships here.)*

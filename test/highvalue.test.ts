@@ -292,6 +292,28 @@ describe("non-chat model filtering", () => {
   });
 });
 
+describe("isSmallModel", () => {
+  test("matches known small/fast tier keywords across providers", async () => {
+    const { isSmallModel } = await import("../src/providers/list-models.js");
+    expect(isSmallModel("openai/gpt-5-mini")).toBe(true);
+    expect(isSmallModel("openai/gpt-5-nano")).toBe(true);
+    expect(isSmallModel("anthropic/claude-haiku-4-5")).toBe(true);
+    expect(isSmallModel("google/gemini-2.5-flash")).toBe(true);
+    expect(isSmallModel("google/gemini-2.5-flash-lite")).toBe(true);
+    expect(isSmallModel("groq/llama-3.1-8b-instant")).toBe(true);
+    expect(isSmallModel("xai/grok-code-fast-1")).toBe(true);
+  });
+
+  test("does not flag large/flagship models, including MoE active-param suffixes", async () => {
+    const { isSmallModel } = await import("../src/providers/list-models.js");
+    expect(isSmallModel("openai/gpt-5")).toBe(false);
+    expect(isSmallModel("anthropic/claude-opus-5")).toBe(false);
+    expect(isSmallModel("google/gemini-3-pro")).toBe(false);
+    expect(isSmallModel("nvidia/nemotron-3-ultra-550b-a55b")).toBe(false);
+    expect(isSmallModel("nvidia/llama-3.1-nemotron-70b-instruct")).toBe(false);
+  });
+});
+
 describe("keyLooksLike", () => {
   test("identifies distinctive key formats", async () => {
     const { keyLooksLike } = await import("../src/providers/catalog.js");
