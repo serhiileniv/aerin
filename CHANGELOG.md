@@ -2,12 +2,13 @@
 
 Aerin is developed *with* aerin-style agents: the overwhelming majority of the code since v0.0.90 was written by a coding agent under human direction. We report it per release, Aider-style.
 
-## Unreleased
+## 0.0.119 — 2026-09-03
 - **Terminal tab title simplified**: was `✦ aerin — <dirname>` at rest and `✶ <your prompt, truncated> — aerin` while a turn ran; now always just `aerin`.
 - **Fixed: assistant replies went ragged on terminal resize**: markdown was hard-wrapped to the terminal width once, at push time, and baked into the cached transcript text — resizing afterward left old replies double-wrapped and jagged (Ink re-wrapping already-hard-wrapped lines). Assistant items now keep their raw markdown alongside the rendered text, and a resize re-renders every cached reply at the new width. Verified live: shrinking and re-widening a real reply now reflows cleanly both ways.
 - **Fixed: links inside bullet lists weren't clickable**: marked-terminal renders links fine in paragraphs but left `[text](url)` and bare autolinked URLs completely unstyled (no color, no OSC 8) inside list items — a real, common case for citation-style responses. Both link forms are now clickable inside lists too, matching how they already render in paragraphs.
 - **Terminal bell on completion and on anything waiting for you**: a turn that ran long enough to log "done in Xs" now also rings the terminal bell (useful if you've alt-tabbed away); permission prompts and `ask_user` questions ring it immediately since the agent is blocked on you specifically.
 - **No more yellow**: removed the last non-grayscale, non-accent color — amber (`warn`) was still showing up as a yellow input border while the agent works, a yellow permission-dialog border, a yellow context-usage warning, and a yellow "scrolled back" hint. The working-state input border now uses the one accent green (a meaningful, deliberate third use of it, alongside the wordmark/voice-marks and code keywords); the permission dialog and other status hints are plain white/gray. The `warn` role itself is removed from the theme — it had zero remaining users. Red stays for actual errors.
+- Regression test locking in that a mid-session `/model` switch keeps the full prior conversation — `Agent.setModel()` never touched `this.messages`, but nothing verified it end-to-end until now.
 
 ## 0.0.118 — 2026-09-03
 - **Jade theme, one green**: consolidated down to exactly one green (accentBright, Dark Jade) used only where it's meaningful — the wordmark, the "●"/"✻" marks that identify aerin's own voice, diff additions, and code keywords. Everything that used to be a second or third shade of green (links, headings, inline code, strings, numbers, function/class names, the input cursor, the loading spinner, plan-mode/section-header text) is now pure grayscale. Red and amber are unchanged (still functional error/warning signals).
