@@ -3,6 +3,7 @@
 Aerin is developed *with* aerin-style agents: the overwhelming majority of the code since v0.0.90 was written by a coding agent under human direction. We report it per release, Aider-style.
 
 ## Unreleased
+- **TUI polish**: the input box no longer defaults to a green border/prompt (green now only signals plan/accept/working states); your own messages in the transcript render bold white instead of green, closer to how Claude Code highlights your turns; multi-line messages you send now indent continuation lines under the `❯` marker instead of running flush left, matching how the agent's own replies already align under `●`; fixed a cursor/placeholder off-by-one that put two spaces before the empty-input hint instead of one.
 - **OpenCode Zen + direct Nemotron/MiMo/Muse**: curated `opencode` entry (OpenCode's own hosted model gateway) — dozens of models, several genuinely $0/$0-priced ("-free" ids), including free-tier Nemotron, Ling/Ring (InclusionAI/Ant), MiMo, and Muse variants, verified against live per-model pricing rather than a provider-wide flag. Also added direct vendor entries: `nvidia` (NVIDIA NIM, Nemotron), `xiaomi` (MiMo), `meta` (Muse).
 - Fix: Google's model list no longer surfaces `computer-use-preview`/`antigravity-preview` — both list under `generateContent` but reject a real chat turn (zero free quota / "multiturn chat not enabled"), so they were unusable dead ends in the picker regardless of tier.
 - Zero-key onboarding message now points at OpenCode Zen alongside Ollama as a way to get free models without a local install.

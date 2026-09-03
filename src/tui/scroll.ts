@@ -20,6 +20,12 @@ export interface FlatLine {
   text: string;
 }
 
+/** "❯ " on the first line, aligned indent on the rest — mirrors the assistant's "●" convention. */
+export function prefixUserLines(text: string): string {
+  const lines = text.split("\n");
+  return [`❯ ${lines[0] ?? ""}`, ...lines.slice(1).map((l) => `  ${l}`)].join("\n");
+}
+
 /**
  * Flatten the transcript into visual rows: long lines are pre-wrapped
  * (ANSI-aware) so one scroll step is one terminal row, blank rows reproduce
@@ -34,9 +40,9 @@ export function buildFlatLines(
   const width = Math.max(20, columns - 2);
   const lines: FlatLine[] = [];
   for (const item of items) {
-    item.text.split("\n").forEach((line, i) => {
-      const prefixed = item.kind === "user" && i === 0 ? `❯ ${line}` : line;
-      wrapAnsiLine(prefixed, width).forEach((row, j) => {
+    const text = item.kind === "user" ? prefixUserLines(item.text) : item.text;
+    text.split("\n").forEach((line, i) => {
+      wrapAnsiLine(line, width).forEach((row, j) => {
         lines.push({ key: `${item.key}:${i}:${j}`, kind: item.kind, text: row });
       });
     });

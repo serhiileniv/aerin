@@ -29,7 +29,7 @@ import type { AskUser } from "../tools/question-tool.js";
 import type { TodoItem } from "../tools/todo-tool.js";
 import type { PermissionMode, PermissionPolicy } from "../permissions/policy.js";
 import { renderMarkdown } from "../terminal/markdown.js";
-import { anchorOffset, buildFlatLines, scrollWindow, stepScroll, type TranscriptKind } from "./scroll.js";
+import { anchorOffset, buildFlatLines, prefixUserLines, scrollWindow, stepScroll, type TranscriptKind } from "./scroll.js";
 import { colorizeDiff, messageText, redactSecrets, relativeTime, setTerminalTitle } from "../terminal/format.js";
 import { expandMentions } from "../core/mentions.js";
 import { DiffText, FilterSelect, LineInput, SelectList, Spinner } from "./components/widgets.js";
@@ -1044,9 +1044,10 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               <Box key={l.key} flexShrink={0}>
                 <Text
                   wrap="truncate-end"
+                  bold={l.kind === "user"}
                   color={
                     l.kind === "user"
-                      ? C.accent
+                      ? C.fg
                       : l.kind === "error" || l.kind === "tool-error"
                         ? C.error
                         : l.kind === "info"
@@ -1067,9 +1068,10 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             flexShrink={0}
           >
             <Text
+              bold={item.kind === "user"}
               color={
                 item.kind === "user"
-                  ? C.accent
+                  ? C.fg
                   : item.kind === "error" || item.kind === "tool-error"
                     ? C.error
                     : item.kind === "info"
@@ -1077,7 +1079,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
                       : undefined
               }
             >
-              {item.kind === "user" ? `❯ ${item.text}` : item.text}
+              {item.kind === "user" ? prefixUserLines(item.text) : item.text}
             </Text>
           </Box>
         ))}
@@ -1408,7 +1410,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       {inputActive ? (
         <Box
           borderStyle="round"
-          borderColor={planMode ? C.magenta : mode === "accept" ? C.ok : working ? C.warn : C.accent}
+          borderColor={planMode ? C.magenta : mode === "accept" ? C.ok : working ? C.warn : C.dim}
           paddingX={1}
         >
           <LineInput

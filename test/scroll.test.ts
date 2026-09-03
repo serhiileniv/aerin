@@ -34,10 +34,10 @@ describe("buildFlatLines", () => {
     expect(lines.map((l) => l.text)).toEqual(["❯ hi", "", "● bash"]);
   });
 
-  test("prefixes ❯ only on the first line of a user message", () => {
+  test("prefixes ❯ on the first line of a user message, indents the rest to align under it", () => {
     const lines = buildFlatLines([item(1, "user", "first\nsecond")], "", 80);
     expect(lines[0]!.text).toBe("❯ first");
-    expect(lines[1]!.text).toBe("second");
+    expect(lines[1]!.text).toBe("  second");
   });
 
   test("wraps long lines to the terminal width so one row = one scroll step", () => {

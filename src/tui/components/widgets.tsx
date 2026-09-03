@@ -285,21 +285,31 @@ export function LineInput(props: {
           ))
         : null}
       <Box>
-        <Text color={C.accent}>{props.prompt}</Text>
-        <Text>{before}</Text>
-        {props.active ? (
-          <Text backgroundColor={C.accentBright} color="#000000">
-            {at}
-          </Text>
-        ) : (
-          <Text>{at}</Text>
-        )}
-        <Text>{after}</Text>
+        <Text color={C.dim}>{props.prompt}</Text>
         {!value && props.placeholder ? (
-          <Text color={C.dim} dimColor>
-            {props.placeholder}
-          </Text>
-        ) : null}
+          <>
+            {props.active ? (
+              <Text backgroundColor={C.accentBright} color="#000000">
+                {props.placeholder[0] ?? " "}
+              </Text>
+            ) : null}
+            <Text color={C.dim} dimColor>
+              {props.active ? props.placeholder.slice(1) : props.placeholder}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text>{before}</Text>
+            {props.active ? (
+              <Text backgroundColor={C.accentBright} color="#000000">
+                {at}
+              </Text>
+            ) : (
+              <Text>{at}</Text>
+            )}
+            <Text>{after}</Text>
+          </>
+        )}
       </Box>
     </Box>
   );
