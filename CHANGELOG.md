@@ -2,7 +2,7 @@
 
 Aerin is developed *with* aerin-style agents: the overwhelming majority of the code since v0.0.90 was written by a coding agent under human direction. We report it per release, Aider-style.
 
-## Unreleased
+## 0.0.116 — 2026-09-03
 - **Jade theme, deepened**: the initial rebrand read as bright mint; the accent/hero greens are now a deeper, more saturated jade, secondary text and code-accent tones dropped their green cast for true neutral gray/white, and the startup banner + wordmark now fade toward near-black instead of staying pastel.
 - **Jade theme, on real colors**: swapped the invented accent/hero hexes for verifiable named colors — Emerald `#50c878` (the gemstone's canonical hex) as the interactive accent, Dark Jade `#007a54` as the hero, and traditional pigment Emerald Green `#046307` anchoring the deep end of every gradient; success and the plan-mode/headers tone are the standard CSS greens MediumSeaGreen and SeaGreen.
 
