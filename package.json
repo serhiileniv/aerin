@@ -1,6 +1,6 @@
 {
   "name": "aerin-agent",
-  "version": "0.0.116",
+  "version": "0.0.117",
   "description": "Aerin your open-source coding agent",
   "type": "module",
   "license": "MIT",
