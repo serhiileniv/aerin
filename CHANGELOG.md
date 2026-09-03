@@ -4,6 +4,7 @@ Aerin is developed *with* aerin-style agents: the overwhelming majority of the c
 
 ## Unreleased
 - **Jade theme, deepened**: the initial rebrand read as bright mint; the accent/hero greens are now a deeper, more saturated jade, secondary text and code-accent tones dropped their green cast for true neutral gray/white, and the startup banner + wordmark now fade toward near-black instead of staying pastel.
+- **Jade theme, on real colors**: swapped the invented accent/hero hexes for verifiable named colors — Emerald `#50c878` (the gemstone's canonical hex) as the interactive accent, Dark Jade `#007a54` as the hero, and traditional pigment Emerald Green `#046307` anchoring the deep end of every gradient; success and the plan-mode/headers tone are the standard CSS greens MediumSeaGreen and SeaGreen.
 
 ## 0.0.115 — 2026-09-03
 - **Custom provider protocol + headers**: `providers.<name>.protocol` (`"openai"` default | `"anthropic"`) lets a custom `baseURL` entry speak the Anthropic Messages API instead of OpenAI-compatible; `providers.<name>.headers` adds arbitrary request headers for gateways that don't authenticate with a plain Bearer key. Wired through `/connect` (both TUI wizard and REPL) and model listing.

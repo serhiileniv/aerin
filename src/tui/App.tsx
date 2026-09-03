@@ -159,8 +159,9 @@ const LOGO = [
   "╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝",
 ] as const;
 const MIN_LOGO_COLUMNS = 42;
-/** Row shades for the wordmark: deep jade at the top melting into near-black. */
-const SUNSET = ["#2fa96c", "#269c63", "#1d8f59", "#147f4c", "#0b6e40", "#04231a"] as const;
+/** Row shades for the wordmark: Emerald at the top, through Dark Jade, into
+ * traditional pigment Emerald Green at the bottom — three real named colors. */
+const SUNSET = ["#50c878", "#30a96a", "#108a5b", "#017545", "#026c26", "#046307"] as const;
 
 /** Truecolor ANSI paint for banner text baked into the transcript. */
 function paint(s: string, hex: string, bold = false): string {
@@ -226,8 +227,8 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
 
   // The startup banner is transcript content, not chrome (Claude Code-style):
   // it scrolls away as the conversation grows and reappears on /clear.
-  // Jade fade: the wordmark fades row by row from deep jade down into
-  // near-black at a horizon line — one hue family, all aerin.
+  // Jade fade: the wordmark fades row by row from Emerald through Dark
+  // Jade into deep pigment Emerald Green at a horizon line — all aerin.
   const bannerItem = (model: string, key = 0): TranscriptItem => {
     const art =
       size.columns >= MIN_LOGO_COLUMNS
