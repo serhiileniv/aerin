@@ -90,7 +90,7 @@ function wrapMcpTool(
     // JSON Schema passthrough for the model; local zod validation is skipped for MCP tools.
     inputSchema: jsonSchema(rawSchema as Parameters<typeof jsonSchema>[0]) as unknown as z.ZodTypeAny,
     permission: "execute",
-    summarize: () => `${serverName}.${toolName} (MCP)`,
+    summarize: () => `Mcp(${serverName}.${toolName})`,
     async execute(input) {
       const result = await client.callTool({ name: toolName, arguments: input as Record<string, unknown> });
       const content = Array.isArray(result.content) ? result.content : [];

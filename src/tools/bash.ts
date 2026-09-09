@@ -83,7 +83,7 @@ export const bashTool: ToolDef<z.ZodTypeAny> = {
       .describe("Run detached and return a job id immediately (for servers/watchers)"),
   }),
   summarize: (i) =>
-    `Bash(${i.command.length > 80 ? i.command.slice(0, 77) + "..." : i.command}${i.background ? " &" : ""})`,
+    `Bash(${i.command.length > 80 ? i.command.slice(0, 79) + "…" : i.command}${i.background ? " &" : ""})`,
   async execute(input, ctx) {
     if (input.background) {
       const { startJob } = await import("./bash-jobs.js");

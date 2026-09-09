@@ -29,14 +29,14 @@ const blanks = (lines: readonly FlatLine[]): number => {
 };
 
 describe("buildFlatLines", () => {
-  test("one visual row per short line, blank margin row after user/assistant items", () => {
-    const lines = buildFlatLines([item(1, "user", "hi"), item(2, "tool", "● bash")], "", 80);
-    expect(lines.map((l) => l.text)).toEqual(["❯ hi", "", "● bash"]);
+  test("one visual row per short line, blank margin row after every block (user/assistant/tool), none after meta", () => {
+    const lines = buildFlatLines([item(1, "user", "hi"), item(2, "tool", "● bash"), item(3, "info", "meta")], "", 80);
+    expect(lines.map((l) => l.text)).toEqual(["› hi", "", "● bash", "", "meta"]);
   });
 
-  test("prefixes ❯ on the first line of a user message, indents the rest to align under it", () => {
+  test("prefixes › on the first line of a user message, indents the rest to align under it", () => {
     const lines = buildFlatLines([item(1, "user", "first\nsecond")], "", 80);
-    expect(lines[0]!.text).toBe("❯ first");
+    expect(lines[0]!.text).toBe("› first");
     expect(lines[1]!.text).toBe("  second");
   });
 
@@ -49,9 +49,9 @@ describe("buildFlatLines", () => {
   test("REGRESSION: live streaming text is part of the scrollable buffer", () => {
     const without = buildFlatLines([item(1, "user", "hi")], "", 80);
     const withLive = buildFlatLines([item(1, "user", "hi")], "streamed line 1\nstreamed line 2", 80);
-    expect(withLive.length).toBe(without.length + 2);
-    expect(withLive[withLive.length - 1]!.text).toBe("streamed line 2");
-    expect(withLive[withLive.length - 1]!.key.startsWith("live:")).toBe(true);
+    expect(withLive.length).toBe(without.length + 3); // two rows + the block's blank margin
+    expect(withLive[withLive.length - 2]!.text).toBe("streamed line 2");
+    expect(withLive[withLive.length - 2]!.key.startsWith("live:")).toBe(true);
   });
 
   test("streaming grows the buffer as chunks arrive (output keeps flowing)", () => {

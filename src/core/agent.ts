@@ -248,6 +248,16 @@ export class Agent {
   }
 
   /** Register a tool after construction — needed by tools that close over this Agent. */
+  /** `Name(args)` for a stored tool call, the same way the live transcript shows it. */
+  summarizeCall(name: string, input: unknown): string {
+    const def = this.toolsByName.get(name) ?? this.opts.deferredTools?.get(name);
+    try {
+      return def?.summarize(input as never) ?? name;
+    } catch {
+      return name;
+    }
+  }
+
   registerTool(def: ToolDef): void {
     this.opts.tools.push(def);
     this.toolsByName.set(def.name, def);

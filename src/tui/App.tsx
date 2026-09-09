@@ -33,11 +33,11 @@ import type { AskUser } from "../tools/question-tool.js";
 import type { TodoItem } from "../tools/todo-tool.js";
 import type { PermissionMode, PermissionPolicy } from "../permissions/policy.js";
 import { renderMarkdown } from "../terminal/markdown.js";
-import { anchorOffset, buildFlatLines, prefixUserLines, scrollWindow, stepScroll, type TranscriptKind } from "./scroll.js";
-import { colorizeDiff, messageText, redactSecrets, relativeTime, setTerminalTitle } from "../terminal/format.js";
+import { anchorOffset, blockGap, buildFlatLines, prefixUserLines, scrollWindow, stepScroll, type TranscriptKind } from "./scroll.js";
+import { colorizeDiff, fmtCost, messageText, redactSecrets, relativeTime, setTerminalTitle } from "../terminal/format.js";
 import { expandMentions } from "../core/mentions.js";
 import { DiffText, FilterSelect, LineInput, SelectList, Spinner } from "./components/widgets.js";
-import { formatToolBlock, formatToolCall, indentExpanded } from "./tool-line.js";
+import { child, formatToolBlock, formatToolCall } from "./tool-line.js";
 import { C, isLightTheme, paint } from "./theme.js";
 
 /** Everything the TUI needs, assembled by run.tsx. */
@@ -171,22 +171,21 @@ const LOGO = [
   "╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝",
 ] as const;
 const MIN_LOGO_COLUMNS = 42;
-/** Row shades for the wordmark: Emerald at the top, through Dark Jade, into
- * traditional pigment Emerald Green at the bottom — three real named colors. */
-const SUNSET = ["#50c878", "#30a96a", "#108a5b", "#017545", "#026c26", "#046307"] as const;
+/** Row shades for the wordmark, Emerald fading into deep Emerald Green; the light set keeps the fade readable on white. */
+const JADE = ["#50c878", "#30a96a", "#108a5b", "#017545", "#026c26", "#046307"] as const;
+const JADE_LIGHT = ["#2e8b57", "#1f7a4d", "#106a43", "#045c3d", "#03482f", "#021f16"] as const;
 
 /** Text color per transcript kind; undefined = terminal default. */
 function kindColor(kind: TranscriptKind): string | undefined {
   return kind === "user" ? C.fg : kind === "error" || kind === "tool-error" ? C.error : kind === "info" ? C.dim : undefined;
 }
 
-/** "● " on the first line, aligned indent on the rest — Claude Code-style blocks. */
+/** "● " on the first line, aligned indent on the rest. The assistant dot is fg — green is for tool status. */
 function withDot(text: string): string {
   const lines = text.split("\n");
-  return [paint("●", C.accentBright) + " " + (lines[0] ?? ""), ...lines.slice(1).map((l) => "  " + l)].join("\n");
+  return [paint("●", C.fg) + " " + (lines[0] ?? ""), ...lines.slice(1).map((l) => "  " + l)].join("\n");
 }
 
-/** One-line result stat for the result line: short outputs verbatim, long ones as a count. */
 /** "~" for home, middle-ellipsis for long paths — keeps the header tidy. */
 function shortenPath(p: string, max = 45): string {
   const home = process.env["USERPROFILE"] ?? process.env["HOME"] ?? "";
@@ -231,20 +230,19 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
   // Jade fade: the wordmark fades row by row from Emerald through Dark
   // Jade into deep pigment Emerald Green at a horizon line — all aerin.
   const bannerItem = (model: string, key = 0): TranscriptItem => {
+    const shades = isLightTheme() ? JADE_LIGHT : JADE;
     const art =
       size.columns >= MIN_LOGO_COLUMNS
-        ? LOGO.map((row, i) =>
-            paint(row, isLightTheme() ? C.accentBright : (SUNSET[i] ?? C.accentBright), true),
-          ).join("\n")
-        : paint("✦ Aerin", C.accentBright, true);
-    const horizon = paint("─".repeat(Math.min(37, Math.max(10, size.columns - 4))), C.magenta);
+        ? LOGO.map((row, i) => paint(row, shades[i] ?? C.accentBright, true)).join("\n")
+        : paint("● aerin", C.accentBright, true);
+    const horizon = paint("─".repeat(Math.min(37, Math.max(10, size.columns - 4))), C.dim);
     const info =
       paint(`v${VERSION} · `, C.dim) + paint(model, C.accent) + paint(` · ${shortenPath(setup.cwd)}`, C.dim);
     return { key, kind: "assistant", text: `${art}\n${horizon}\n${info}` };
   };
   const [items, setItems] = useState<TranscriptItem[]>(() => [
     bannerItem(setup.modelId),
-    ...setup.warnings.map((w, i) => ({ key: i + 1, kind: "error" as const, text: `warning: ${w}` })),
+    ...setup.warnings.map((w, i) => ({ key: i + 1, kind: "info" as const, text: `warning · ${w}` })),
   ]);
   const [streaming, setStreaming] = useState("");
   const [working, setWorking] = useState(false);
@@ -291,6 +289,8 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
   /** The call whose result is pending: its transcript item is rewritten in place when the result lands. */
   const activeToolRef = useRef<{ key: number; summary: string; startedAt: number } | null>(null);
   const [activeTool, setActiveTool] = useState<string | null>(null);
+  /** The ctrl+o hint is shown on the first collapsed result of a turn only. */
+  const hintShownRef = useRef(false);
 
   const pushItem = useCallback((kind: TranscriptItem["kind"], text: string) => {
     if (kind === "user") setScrollOffset(0); // your own message — jump back to live
@@ -329,7 +329,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         const latest = ((await res.json()) as { version?: string }).version;
         if (latest) setLatestVersion(latest);
         if (latest && latest !== VERSION && VERSION !== "0.0.0") {
-          pushItem("info", `(update available: v${latest} — run "aerin update")`);
+          pushItem("info", `update available · v${latest} · aerin update`);
         }
       } catch {
         // offline — never bother the user
@@ -396,7 +396,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       // parts (display stays clean).
       const expanded = await expandMentions(prompt, setup.cwd).catch(() => ({ text: prompt, images: [] }));
       if (expanded.images.length > 0) {
-        pushItem("info", `  └ attached ${expanded.images.map((i) => i.name).join(", ")}`);
+        pushItem("info", child(`attached · ${expanded.images.map((i) => i.name).join(" · ")}`));
       }
       try {
         for await (const event of setup.agent.send(expanded.text, expanded.images)) {
@@ -433,7 +433,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             }
             case "tool-call": {
               const key = nextKey.current++;
-              setItems((prev) => [...prev, { key, kind: "tool", text: formatToolBlock(event.summary) }]);
+              setItems((prev) => [...prev, { key, kind: "tool", text: formatToolBlock(event.summary, undefined, mdWidth()) }]);
               activeToolRef.current = { key, summary: event.summary, startedAt: Date.now() };
               setActiveTool(event.summary);
               lastSummaryRef.current = event.summary;
@@ -450,20 +450,23 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
                 ...(active ? { ms: Date.now() - active.startedAt } : {}),
               };
               lastToolResultRef.current = { summary, output: event.output, isError: event.isError };
-              const block = formatToolBlock(summary, result, mdWidth());
+              const block = formatToolBlock(summary, result, mdWidth(), !hintShownRef.current);
+              if (block.includes("ctrl+o")) hintShownRef.current = true;
               setItems((prev) => {
-                // Rewrite the call's own item when nothing (a diff preview, say)
-                // landed in between; otherwise mark the call and append the result.
+                // Rewrite the call's own item; when a diff preview landed in
+                // between, the result line goes right under the call and the
+                // diff stays below it (the block's own blank gap moves to the diff).
                 const idx = active ? prev.findIndex((it) => it.key === active.key) : -1;
+                if (idx < 0) return [...prev, { key: nextKey.current++, kind: "tool", text: block }];
                 if (idx === prev.length - 1) return [...prev.slice(0, idx), { ...prev[idx]!, text: block }];
-                const [call, ...rest] = block.split("\n");
-                const marked = idx < 0 ? prev : prev.map((it, i) => (i === idx ? { ...it, text: call ?? "" } : it));
-                return [...marked, { key: nextKey.current++, kind: "tool", text: idx < 0 ? block : rest.join("\n") }];
+                const tail = prev.slice(idx + 1);
+                const last = tail[tail.length - 1]!;
+                return [...prev.slice(0, idx), { ...prev[idx]!, text: block }, ...tail.slice(0, -1), { ...last, kind: "tool" }];
               });
               break;
             }
             case "compaction":
-              pushItem("info", `[compacting context — was ${event.preTokens} tokens]`);
+              pushItem("info", `compacted context · was ${fmtTokens(event.preTokens)} tokens`);
               break;
             case "todo-update":
               setTodos(event.items);
@@ -472,24 +475,13 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               pushItem("info", colorizeDiff(event.text));
               break;
             case "retry":
-              pushItem(
-                "info",
-                `(provider error — retrying, attempt ${event.attempt}/${event.maxAttempts}: ${event.message.slice(0, 80)})`,
-              );
+              pushItem("info", `retry ${event.attempt}/${event.maxAttempts} · ${event.message.slice(0, 80)}`);
               break;
             case "failover":
-              pushItem(
-                "info",
-                `(${event.from} failed: ${event.message.slice(0, 80)} — continuing on ${event.to})`,
-              );
+              pushItem("info", `failover · ${event.from} → ${event.to} · ${event.message.slice(0, 80)}`);
               break;
             case "goal-check":
-              pushItem(
-                "info",
-                event.done
-                  ? `✓ goal complete — ${event.reason}`
-                  : `↻ goal continues (${event.turnsLeft} turns left) — ${event.reason}`,
-              );
+              pushItem("info", event.done ? `✓ goal complete · ${event.reason}` : `goal continues · ${event.turnsLeft} turns left · ${event.reason}`);
               if (event.done) setGoalSet(false);
               break;
             case "subagent-update": {
@@ -509,8 +501,11 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
                 });
                 const tok = fmtTokens(event.inputTokens + event.outputTokens);
                 pushItem(
-                  event.status === "error" ? "tool-error" : "info",
-                  `  └ agent ${event.status}: ${event.description} (${event.toolCalls} tools, ${tok} tok${event.costUsd ? `, ~$${event.costUsd.toFixed(4)}` : ""})`,
+                  "info",
+                  child(
+                    `agent ${event.status} · ${event.description} · ${event.toolCalls} tools · ${tok} tok${event.costUsd ? ` · ${fmtCost(event.costUsd)}` : ""}`,
+                    event.status === "error" ? C.error : C.dim,
+                  ),
                 );
                 // Sub-agent spend is folded into the agent totals by the core loop.
                 setStats({
@@ -541,6 +536,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         setWorking(false);
         setActiveTool(null);
         activeToolRef.current = null;
+        hintShownRef.current = false;
         setThinking(false);
         setReasoningTail("");
         reasoningBuf.current = "";
@@ -553,14 +549,15 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         if (streamBuf.current.trim()) pushAssistant(streamBuf.current);
         streamBuf.current = "";
         setStreaming("");
-        // Tell the user what the wait cost them — but skip trivial turns.
-        // The terminal bell matters most here: a turn worth announcing is
-        // also one worth noticing from another window/tab.
+        // Receipt: what the turn took. The bell rings only for turns long
+        // enough to have wandered off to another window.
         const elapsed = Date.now() - turnStartRef.current;
-        if (elapsed >= 3000) {
-          pushItem("info", `  └ done in ${fmtDuration(elapsed)}`);
-          process.stdout.write("\x07");
-        }
+        const a = setup.agent;
+        pushItem(
+          "info",
+          child(`done · ${fmtDuration(elapsed)} · ${fmtTokens(a.totalInputTokens)}↑ ${fmtTokens(a.totalOutputTokens)}↓${a.totalCostUsd > 0 ? ` · ${fmtCost(a.totalCostUsd)}` : ""}`),
+        );
+        if (elapsed >= 3000) process.stdout.write("\x07");
         settleDialogs();
         setSubagents(new Map()); // clear stragglers on abort/error
         setTerminalTitle("aerin");
@@ -595,11 +592,11 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         if (t.trim()) add.push({ key: nextKey.current++, kind: "user", text: t });
       } else if (m.role === "assistant") {
         if (Array.isArray(m.content)) {
-          for (const part of m.content as { type?: string; text?: string; toolName?: string }[]) {
+          for (const part of m.content as { type?: string; text?: string; toolName?: string; input?: unknown }[]) {
             if (part?.type === "text" && part.text?.trim()) {
               add.push({ key: nextKey.current++, kind: "assistant", text: withDot(renderMarkdown(part.text, mdWidth())), raw: part.text });
             } else if (part?.type === "tool-call" && part.toolName) {
-              add.push({ key: nextKey.current++, kind: "tool", text: formatToolCall(part.toolName, "ok") });
+              add.push({ key: nextKey.current++, kind: "tool", text: formatToolCall(setup.agent.summarizeCall(part.toolName, part.input), "ok", mdWidth()) });
             }
           }
         } else {
@@ -615,7 +612,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
   const resumeSession = useCallback(
     async (id: string): Promise<void> => {
       const messages = await resumeById(setup, id);
-      pushItem("info", `── resumed conversation (${messages.length} messages) ──`);
+      pushItem("info", `resumed · ${messages.length} messages`);
       replayHistory(messages);
       setCtxTokens(setup.agent.estimateContextTokens());
     },
@@ -677,15 +674,13 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               ...helpLines(setup),
               "",
               "Shortcuts:",
-              "  Esc          interrupt the agent · clear the input",
-              "  Esc Esc      edit your last message",
+              "  Esc          interrupt the agent · clear the input · Esc Esc edits your last message",
               "  Ctrl+O       expand the last tool output",
               "  Shift+Tab    cycle mode: manual → accept edits → plan",
               "  Tab          complete /commands and @file paths",
-              "  Home/End · Ctrl+←/→   cursor jumps (words, line edges)",
+              "  Ctrl+←/→     word jumps · Home/End line edges",
               "  \\ + Enter    insert a newline (Alt+Enter too)",
               "  PgUp/PgDn    scroll the transcript (mouse wheel works)",
-              "  @path        attach a file to your message",
               "  Ctrl+C ×2    quit",
             ].join("\n"),
           );
@@ -728,7 +723,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               contextWindow: modelInfo(modelId).contextWindow,
               ctxTokens,
               cwdDisplay: shortenPath(setup.cwd, 60),
-              costLine: `${fmtTokens(stats.inTok)}↑ ${fmtTokens(stats.outTok)}↓${freeTier ? " · free tier — not billed" : stats.cost > 0 ? ` · $${stats.cost.toFixed(4)}` : ""}`,
+              costLine: `${fmtTokens(stats.inTok)}↑ ${fmtTokens(stats.outTok)}↓${freeTier ? " · free tier · not billed" : stats.cost > 0 ? ` · ${fmtCost(stats.cost)}` : ""}`,
               ...(latestVersion ? { latestVersion } : {}),
               jobsLine:
                 running.length > 0
@@ -802,7 +797,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             void runTurn(renderCommand(custom, arg), `${cmd}${arg ? ` ${arg}` : ""}`);
             return;
           }
-          pushItem("error", `Unknown command: ${cmd}. Try /help.`);
+          pushItem("error", `✗ unknown command ${cmd} · try /help`);
         }
       }
     },
@@ -825,7 +820,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         setModelId(id);
         setRecentModels((prev) => [id, ...prev.filter((m) => m !== id)].slice(0, 5));
         void persistModelChoice(id).catch(() => {}); // sticky across sessions; best effort
-        pushItem("info", `Model switched to ${id}`);
+        pushItem("info", `model · ${id}`);
       } catch (err) {
         pushItem("error", err instanceof Error ? err.message : String(err));
       }
@@ -887,7 +882,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       if (last) {
         const lines = last.output.split("\n");
         const shown = lines.length > 300 ? [...lines.slice(0, 300), `[… ${lines.length - 300} more lines]`] : lines;
-        pushItem(last.isError ? "tool-error" : "info", indentExpanded(`${last.summary} — full output:\n${shown.join("\n")}`));
+        pushItem("info", child(`${last.summary} · full output\n${shown.join("\n")}`, last.isError ? C.error : C.dim));
         lastToolResultRef.current = null; // one-shot: re-arms on the next tool result
       }
       return;
@@ -906,8 +901,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       scrollBy(-Math.max(3, viewportHRef.current - 2));
       return;
     }
-    if (key.escape && workingRef.current) {
-      settleDialogs();
+    if (key.escape && workingRef.current && !permission && !question) {
       setup.agent.abort();
       return;
     }
@@ -931,7 +925,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
   useEffect(() => {
     // A session continued via -c/-r arrives with history — show it.
     if (setup.agent.history.length > 0) {
-      pushItem("info", `── continuing conversation (${setup.agent.history.length} messages) ──`);
+      pushItem("info", `continuing · ${setup.agent.history.length} messages`);
       replayHistory(setup.agent.history);
       setCtxTokens(setup.agent.estimateContextTokens());
     }
@@ -1062,7 +1056,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         {items.slice(-VIEWPORT_ITEMS).map((item) => (
           <Box
             key={item.key}
-            marginBottom={item.kind === "assistant" || item.kind === "user" ? 1 : 0}
+            marginBottom={blockGap(item.kind)}
             flexShrink={0}
           >
             <Text
@@ -1074,37 +1068,30 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
           </Box>
         ))}
       {streaming ? (
-        <Box flexShrink={0}>
+        <Box flexShrink={0} marginBottom={1}>
           <Text>{streaming}</Text>
         </Box>
       ) : null}
       {thinking && reasoningTail ? (
-        <Box flexDirection="column" marginBottom={0}>
-          <Text>
-            <Text color={C.accentBright}>✻ </Text>
-            <Text color={C.magenta} italic>
-              {reasoningTail}
-            </Text>
-          </Text>
-        </Box>
+        <Text color={C.dim} italic>
+          {child(`thinking\n${reasoningTail}`)}
+        </Text>
       ) : null}
       {subagents.size > 0 ? (
-        <Box flexDirection="column">
-          {shownSubagents.map(([id, s]) => (
-            <Text key={id} color={C.dim}>
-              {"  "}» {s.description} — {s.toolCalls} tools · {s.lastTool ?? "starting"}
-            </Text>
-          ))}
-          {subagents.size > shownSubagents.length ? (
-            <Text color={C.dim}>{"  "}» +{subagents.size - shownSubagents.length} more agents</Text>
-          ) : null}
-        </Box>
+        <Text color={C.dim}>
+          {child(
+            [
+              ...shownSubagents.map(([, s]) => `agent · ${s.description} · ${s.toolCalls} tools · ${s.lastTool ?? "starting"}`),
+              ...(subagents.size > shownSubagents.length ? [`+${subagents.size - shownSubagents.length} more agents`] : []),
+            ].join("\n"),
+          )}
+        </Text>
       ) : null}
       {todos.length > 0 ? (
         <Box flexDirection="column" borderStyle="round" borderColor={C.dim} paddingX={1} alignSelf="flex-start">
           {shownTodos.map((t, i) => (
             <Text key={i} color={t.status === "done" ? C.ok : t.status === "active" ? C.accent : C.dim}>
-              {t.status === "done" ? "[x]" : t.status === "active" ? "[>]" : "[ ]"} {t.text}
+              {t.status === "done" ? "✓" : t.status === "active" ? "●" : "○"} {t.text}
             </Text>
           ))}
           {todos.length > shownTodos.length ? (
@@ -1115,7 +1102,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       {working && !permission && !question ? (
         <Box flexShrink={0}>
           <Spinner
-            label={`${activeTool ? activeTool.slice(0, 60) : thinking ? "thinking" : "working"} — Esc to interrupt`}
+            label={`${activeTool ? activeTool.slice(0, 60) : thinking ? "thinking" : "working"} · esc to interrupt`}
             since={turnStartRef.current}
           />
         </Box>
@@ -1127,8 +1114,8 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       {/* Bottom section: dialogs, input, status — pinned by layout. */}
       <Box flexDirection="column" flexShrink={0}>
       {permission && !denyReasonMode ? (
-        <Box flexDirection="column" borderStyle="round" borderColor={C.fg} paddingX={1}>
-          <Text bold color={C.fg}>Permission: {permission.req.summary}</Text>
+        <Box flexDirection="column" borderStyle="round" borderColor={C.accent} paddingX={1}>
+          <Text bold color={C.fg}>Permission · {permission.req.summary}</Text>
           {permission.req.preview ? (
             <DiffText diff={permission.req.preview} maxLines={Math.max(4, Math.min(25, size.rows - 12))} />
           ) : null}
@@ -1137,8 +1124,9 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             items={[
               { label: "Yes", value: "allow" },
               { label: "Yes, always for this project", value: "always" },
-              { label: "No — tell the agent what to do instead", value: "deny" },
+              { label: "No, tell the agent what to do instead", value: "deny" },
             ]}
+            onCancel={() => setDenyReasonMode(true)}
             onSelect={(v) => {
               if (v === "allow") {
                 permission.resolve({ kind: "allow" });
@@ -1175,8 +1163,9 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             active={true}
             items={[
               ...question.options.map((o) => ({ label: o, value: o })),
-              { label: "✎ type a different answer", value: "__other__" },
+              { label: "type a different answer", value: "__other__" },
             ]}
+            onCancel={() => setQuestionOther(true)}
             onSelect={(v) => {
               if (v === "__other__") {
                 setQuestionOther(true);
@@ -1212,7 +1201,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             items={[
               { label: "Featured", value: "__header_featured", header: true },
               ...PROVIDER_CATALOG.map((e) => ({
-                label: `${e.name}${e.freeTier ? " · free tier" : ""}${resolveApiKey(e.id, setup.config) ? "  ✓ connected" : ""}`,
+                label: `${e.name}${e.freeTier ? " · free tier" : ""}${resolveApiKey(e.id, setup.config) ? " · connected ✓" : ""}`,
                 value: e.id,
               })),
               { label: "Custom OpenAI-compatible endpoint…", value: "__custom__" },
@@ -1222,7 +1211,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               ...connect.dynamic
                 .filter((d) => !catalogEntry(d.id))
                 .map((d) => ({
-                  label: `${d.name}${d.protocol === "anthropic" ? "  · anthropic API" : ""}${setup.config.providers?.[d.id]?.apiKey ? "  ✓ connected" : ""}`,
+                  label: `${d.name}${d.protocol === "anthropic" ? " · anthropic API" : ""}${setup.config.providers?.[d.id]?.apiKey ? " · connected ✓" : ""}`,
                   value: `dyn:${d.id}`,
                 })),
             ]}
@@ -1266,7 +1255,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               const key = raw.trim();
               const { id, baseURL, protocol } = connect;
               setConnect(null);
-              if (!key) return pushItem("info", "(connect cancelled)");
+              if (!key) return pushItem("info", "connect cancelled");
               void saveConnection(id, key, baseURL, protocol);
             }}
           />
@@ -1282,7 +1271,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               const id = raw.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
               if (!id) {
                 setConnect(null);
-                return pushItem("info", "(connect cancelled)");
+                return pushItem("info", "connect cancelled");
               }
               setConnect({ step: "custom-protocol", id });
             }}
@@ -1319,7 +1308,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               const { id, protocol } = connect;
               if (!/^https?:\/\//.test(baseURL)) {
                 setConnect(null);
-                return pushItem("info", "(connect cancelled — base URL must start with http)");
+                return pushItem("info", "connect cancelled · base URL must start with http");
               }
               setConnect({ step: "custom-key", id, baseURL, protocol });
             }}
@@ -1341,9 +1330,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         </Box>
       ) : null}
 
-      {modelPicker === "loading" ? (
-        <Text color={C.dim}>… fetching available models from your providers</Text>
-      ) : null}
+      {modelPicker === "loading" ? <Spinner label="fetching models from your providers" /> : null}
 
       {modelPicker && modelPicker !== "loading" ? (
         <Box flexDirection="column" borderStyle="round" borderColor={C.accent} paddingX={1}>
@@ -1368,7 +1355,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             active={true}
             {...(setup.mouse ? { wheel: setup.mouse } : {})}
             items={sessionPicker.map((s) => ({
-              label: `${relativeTime(s.createdAt).padEnd(11)} ${String(s.messageCount).padStart(3)} msg  ${s.title ?? "(no prompt yet)"}`,
+              label: `${relativeTime(s.createdAt).padEnd(11)} ${String(s.messageCount).padStart(3)} msg  ${(s.title ?? "(no prompt yet)").slice(0, Math.max(20, size.columns - 26))}`,
               value: s.id,
             }))}
             onCancel={() => setSessionPicker(null)}
@@ -1383,18 +1370,9 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       ) : null}
 
       {queued.length > 0 ? (
-        <Box flexDirection="column" paddingX={2}>
-          {queued.length > shownQueued.length ? (
-            <Text color={C.dim} dimColor>
-              (+{queued.length - shownQueued.length} more queued)
-            </Text>
-          ) : null}
-          {shownQueued.map((q, i) => (
-            <Text key={i} color={C.dim} dimColor wrap="truncate-end">
-              ❯ {q}
-            </Text>
-          ))}
-        </Box>
+        <Text color={C.dim} wrap="truncate-end">
+          {child([...shownQueued.map((q) => `queued · ${q}`), ...(queued.length > shownQueued.length ? [`+${queued.length - shownQueued.length} more queued`] : [])].join("\n"))}
+        </Text>
       ) : null}
 
       {inputActive ? (
@@ -1413,17 +1391,13 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
             escActive={!working}
             onScroll={scrollBy}
             recallLast={() => inputHistory[inputHistory.length - 1]}
-            placeholder={
-              working
-                ? "type to steer the agent mid-task — it sees your message right away"
-                : "ask anything · @file to attach · / for commands"
-            }
+            placeholder={working ? "steer the agent · it sees this right away" : "ask anything · @file · / commands"}
           />
         </Box>
       ) : null}
 
       <Box paddingX={1}>
-        <Text>
+        <Text wrap="truncate-end">
           <Text color={C.accent}>{modelId.split("/").slice(-1)[0]}</Text>
           {ctxTokens > 0 ? (
             <Text
@@ -1439,13 +1413,13 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
           <Text color={C.dim}>
             {" · "}
             {fmtTokens(stats.inTok)}↑ {fmtTokens(stats.outTok)}↓
-            {stats.cost > 0 ? ` · $${stats.cost.toFixed(stats.cost < 0.1 ? 4 : 2)}` : ""}
+            {stats.cost > 0 ? ` · ${fmtCost(stats.cost)}` : ""}
           </Text>
           {goalSet ? <Text color={C.accent}> · goal</Text> : null}
-          {planMode ? <Text color={C.magenta}> · plan (shift+tab)</Text> : null}
-          {mode === "accept" ? <Text color={C.ok}>{" · >> accept edits (shift+tab)"}</Text> : null}
-          {scrollOffset > 0 ? <Text color={C.dim}> · ↑ scrolled (PgDn)</Text> : null}
-          {exitArmed ? <Text color={C.error}> · Ctrl+C again to exit</Text> : null}
+          {planMode ? <Text color={C.magenta}> · plan</Text> : null}
+          {mode === "accept" ? <Text color={C.ok}> · accept edits</Text> : null}
+          {scrollOffset > 0 ? <Text color={C.dim}> · ↑ scrolled · PgDn</Text> : null}
+          {exitArmed ? <Text color={C.error}> · ctrl+c again to exit</Text> : working ? <Text color={C.dim}> · esc to interrupt</Text> : <Text color={C.dim}> · ? for shortcuts</Text>}
         </Text>
       </Box>
       </Box>

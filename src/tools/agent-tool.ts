@@ -139,7 +139,7 @@ export function createAgentTool(deps: AgentToolDeps): ToolDef<z.ZodTypeAny> {
         // labeled with the task); research sub-agents never ask by invariant,
         // and deny rather than hang if that invariant is ever broken.
         onPermission: isWorker
-          ? (req) => askSerialized({ ...req, summary: `[${input.description}] ${req.summary}` })
+          ? (req) => askSerialized({ ...req, summary: `Agent(${input.description}) › ${req.summary}` })
           : async () => ({ kind: "deny", reason: "Sub-agents cannot request permissions." }),
         cwd: ctx.cwd,
         allowOutsideCwd: ctx.allowOutsideCwd,

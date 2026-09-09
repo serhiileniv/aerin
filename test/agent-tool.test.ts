@@ -103,7 +103,7 @@ describe("agent tool", () => {
     expect(output).toBe("WORKER REPORT");
     expect(await fs.readFile(path.join(cwd, "out.txt"), "utf8")).toBe("hello");
     expect(asks).toHaveLength(1);
-    expect(asks[0]?.summary).toContain("[write greeting]");
+    expect(asks[0]?.summary).toContain("Agent(write greeting) ›");
   });
 
   test("worker mode respects a user denial and reports instead of writing", async () => {

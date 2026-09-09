@@ -260,20 +260,12 @@ export function LineInput(props: {
   // pinned to the bottom of the screen, so anything below it would be clipped
   // into the bar; above, the list pushes the transcript up and stays visible.
   const row = (key: string, selected: boolean, text: string) => (
-    <Text key={key} backgroundColor={selected ? C.accent : undefined} color={selected ? "#000000" : C.dim}>
+    <Text key={key} color={selected ? C.accent : C.dim}>
       {selected ? "❯ " : "  "}
       {text}
-      {"  "}
     </Text>
   );
-  const cursorCell = (ch: string) =>
-    props.active ? (
-      <Text backgroundColor={C.fg} color="#000000">
-        {ch}
-      </Text>
-    ) : (
-      <Text>{ch}</Text>
-    );
+  const cursorCell = (ch: string) => (props.active ? <Text inverse>{ch}</Text> : <Text>{ch}</Text>);
   return (
     <Box flexDirection="column">
       {matches.map((m, i) => row(m.name, i === cSugg, `${m.name.padEnd(pad)}${m.description}`))}
@@ -282,10 +274,8 @@ export function LineInput(props: {
         <Text color={C.dim}>{props.prompt}</Text>
         {!value && props.placeholder ? (
           <>
-            {props.active ? cursorCell(props.placeholder[0] ?? " ") : null}
-            <Text color={C.dim} dimColor>
-              {props.active ? props.placeholder.slice(1) : props.placeholder}
-            </Text>
+            {cursorCell(" ")}
+            <Text color={C.dim}>{props.placeholder}</Text>
           </>
         ) : (
           <>
@@ -310,31 +300,27 @@ export function Spinner(props: { label: string; since?: number }): React.ReactEl
   const elapsed = props.since ? Math.floor((Date.now() - props.since) / 1000) : 0;
   return (
     <Text color={C.dim}>
-      {/* Neon pulse: the glyph flickers pink ↔ synth purple. */}
       <Text color={frame % 2 === 0 ? C.fg : C.dim}>{SPINNER_FRAMES[frame]}</Text> {props.label}
       {elapsed > 0 ? ` · ${elapsed}s` : ""}
     </Text>
   );
 }
 
-/** Unified-diff renderer: green additions, red deletions, gray hunk headers. */
+/** Lines of a unified diff worth showing: no `Index:`/`===`/`---`/`+++` headers. */
+export function diffBody(diff: string): string[] {
+  return diff.split("\n").filter((l) => !/^(Index: |=+$|--- |\+\+\+ |\\ No newline)/.test(l));
+}
+
+/** Unified-diff renderer: green additions, red deletions, dim context; `… +N lines` when cut. */
 export function DiffText(props: { diff: string; maxLines?: number }): React.ReactElement {
-  const lines = props.diff.split("\n").slice(0, props.maxLines ?? 30);
+  const all = diffBody(props.diff);
+  const max = props.maxLines ?? 30;
+  const lines = all.slice(0, max);
+  if (all.length > max) lines.push(`… +${all.length - max} lines`);
   return (
     <Box flexDirection="column">
       {lines.map((line, i) => (
-        <Text
-          key={i}
-          color={
-            line.startsWith("+") && !line.startsWith("+++")
-              ? C.accentBright
-              : line.startsWith("-") && !line.startsWith("---")
-                ? C.error
-                : line.startsWith("@@")
-                  ? C.accent
-                  : C.dim
-          }
-        >
+        <Text key={i} color={line.startsWith("+") ? C.accentBright : line.startsWith("-") ? C.error : C.dim}>
           {line || " "}
         </Text>
       ))}
@@ -481,19 +467,22 @@ export function FilterSelect(props: {
   );
 }
 
-/** Minimal arrow-key select list. */
+/** Arrow-key select list; 1-9 pick directly, Esc cancels (never propagates to the global Esc). */
 export function SelectList(props: {
   items: SelectItem[];
   onSelect: (value: string) => void;
+  onCancel?: () => void;
   active: boolean;
 }): React.ReactElement {
   const [index, setIndex] = useState(0);
   useInput(
-    (_input, key) => {
+    (input, key) => {
+      const n = Number(input);
       if (key.upArrow) setIndex((i) => (i - 1 + props.items.length) % props.items.length);
       else if (key.downArrow) setIndex((i) => (i + 1) % props.items.length);
-      else if (key.return) {
-        const item = props.items[index];
+      else if (key.escape) props.onCancel?.();
+      else if (key.return || (n >= 1 && n <= props.items.length)) {
+        const item = props.items[key.return ? index : n - 1];
         if (item) props.onSelect(item.value);
       }
     },
@@ -502,9 +491,9 @@ export function SelectList(props: {
   return (
     <Box flexDirection="column">
       {props.items.map((item, i) => (
-        <Text key={item.value} color={i === index ? C.accent : undefined}>
+        <Text key={item.value} color={i === index ? C.accent : C.dim}>
           {i === index ? "❯ " : "  "}
-          {item.label}
+          {i + 1} {item.label}
         </Text>
       ))}
     </Box>

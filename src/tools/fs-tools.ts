@@ -157,9 +157,9 @@ function emitDiff(ctx: ToolContext, label: string, before: string, after: string
   const patch = createTwoFilesPatch(label, label, before, after, "", "");
   const lines = patch
     .split("\n")
-    .filter((l) => !l.startsWith("===") && !l.startsWith("---") && !l.startsWith("+++") && l !== "\\ No newline at end of file");
+    .filter((l) => !/^(Index: |===|--- |\+\+\+ |\\ No newline)/.test(l));
   const shown = lines.slice(0, MAX_DIFF_DISPLAY_LINES);
-  if (lines.length > MAX_DIFF_DISPLAY_LINES) shown.push(`… ${lines.length - MAX_DIFF_DISPLAY_LINES} more diff lines`);
+  if (lines.length > MAX_DIFF_DISPLAY_LINES) shown.push(`… +${lines.length - MAX_DIFF_DISPLAY_LINES} lines`);
   ctx.onProgress({ type: "tool-display", text: shown.join("\n").trimEnd() });
 }
 

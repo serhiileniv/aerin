@@ -57,7 +57,7 @@ export async function runRepl(flags: RunFlags, initialPrompt?: string): Promise<
   rl = readline.createInterface({ input: stdin, output: stdout });
   for (const w of setup.warnings) stderr.write(`warning: ${w}\n`);
   const { VERSION } = await import("../version.js");
-  stdout.write(`✦ Aerin v${VERSION} — ${setup.modelId}\n  ${setup.cwd} · /help for commands\n\n`);
+  stdout.write(`● aerin v${VERSION} · ${setup.modelId}\n  ${setup.cwd} · /help for commands\n\n`);
 
   let running = false;
   rl.on("SIGINT", () => {
@@ -104,7 +104,7 @@ export async function runRepl(flags: RunFlags, initialPrompt?: string): Promise<
             break;
           case "todo-update":
             for (const t of event.items) {
-              stdout.write(`  ${t.status === "done" ? "[x]" : t.status === "active" ? "[>]" : "[ ]"} ${t.text}\n`);
+              stdout.write(`  ${t.status === "done" ? "✓" : t.status === "active" ? "●" : "○"} ${t.text}\n`);
             }
             break;
           default: {

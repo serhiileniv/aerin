@@ -23,16 +23,21 @@ export function setTerminalTitle(title: string): void {
   if (process.stdout.isTTY) process.stdout.write(`\x1b]0;${title}\x07`);
 }
 
-/** Colorize a unified diff with ANSI (theme greens/reds), 2-space indented. */
-export function colorizeDiff(diff: string): string {
+/** Colorize a unified diff with ANSI (theme greens/reds), indented to sit under a `⎿` rail. */
+export function colorizeDiff(diff: string, indent = "     "): string {
   const color = process.stdout.isTTY === true || Boolean(process.env["FORCE_COLOR"]);
   return diff
     .split("\n")
     .map((line) => {
       const c = `38;2;${rgbOf(line.startsWith("+") ? C.accentBright : line.startsWith("-") ? C.error : C.dim)}`;
-      return color ? `  \x1b[${c}m${line}\x1b[0m` : `  ${line}`;
+      return color ? `${indent}\x1b[${c}m${line}\x1b[0m` : `${indent}${line}`;
     })
     .join("\n");
+}
+
+/** "$0.0042" under ten cents, "$1.23" above — the one cost format for receipts, footer, /status. */
+export function fmtCost(usd: number): string {
+  return `$${usd.toFixed(usd < 0.1 ? 4 : 2)}`;
 }
 
 /** "just now", "5m ago", "3h ago", "2d ago" — for session lists. */

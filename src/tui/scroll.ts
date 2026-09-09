@@ -20,10 +20,15 @@ export interface FlatLine {
   text: string;
 }
 
-/** "❯ " on the first line, aligned indent on the rest — mirrors the assistant's "●" convention. */
+/** "› " on the first line, aligned indent on the rest — mirrors the assistant's "●" convention. */
 export function prefixUserLines(text: string): string {
   const lines = text.split("\n");
-  return [`❯ ${lines[0] ?? ""}`, ...lines.slice(1).map((l) => `  ${l}`)].join("\n");
+  return [`› ${lines[0] ?? ""}`, ...lines.slice(1).map((l) => `  ${l}`)].join("\n");
+}
+
+/** Blank rows after an item: every block (user/assistant/tool) gets one; meta lines get none. The one place this rule lives. */
+export function blockGap(kind: TranscriptKind): number {
+  return kind === "user" || kind === "assistant" || kind === "tool" ? 1 : 0;
 }
 
 /**
@@ -46,9 +51,7 @@ export function buildFlatLines(
         lines.push({ key: `${item.key}:${i}:${j}`, kind: item.kind, text: row });
       });
     });
-    if (item.kind === "assistant" || item.kind === "user") {
-      lines.push({ key: `${item.key}:m`, kind: "info", text: "" });
-    }
+    if (blockGap(item.kind)) lines.push({ key: `${item.key}:m`, kind: "info", text: "" });
   }
   if (streaming) {
     streaming.split("\n").forEach((line, i) => {
@@ -56,6 +59,7 @@ export function buildFlatLines(
         lines.push({ key: `live:${i}:${j}`, kind: "assistant", text: row });
       });
     });
+    lines.push({ key: "live:m", kind: "info", text: "" });
   }
   return lines;
 }

@@ -218,7 +218,7 @@ export function statusCommand(ctx: CommandCtx, x: StatusExtras): string {
     x.ctxTokens && x.contextWindow ? ` (${Math.round((x.ctxTokens / x.contextWindow) * 100)}% of context used)` : "";
   const mode = ctx.policy.currentMode === "accept" ? "accept edits" : ctx.policy.currentMode;
   return [
-    `aerin v${x.version}${x.latestVersion && x.latestVersion !== x.version ? `  (v${x.latestVersion} available — aerin update)` : ""}`,
+    `aerin v${x.version}${x.latestVersion && x.latestVersion !== x.version ? ` · v${x.latestVersion} available · aerin update` : ""}`,
     `  session   ${ctx.sessionId} · ${ctx.agent.history.length} messages`,
     `  model     ${x.modelId}${pct}`,
     `  mode      ${mode}${ctx.agent.currentGoal ? ` · goal: ${ctx.agent.currentGoal.slice(0, 50)}` : ""}`,
