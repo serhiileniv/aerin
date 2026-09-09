@@ -4,6 +4,8 @@
 
 One page per feature: what it does, how to use it, how it works, and where the code lives. **Agents: read the page for a subsystem before changing it** — each page names the source files and the invariants that must hold.
 
+Each feature also has a design record in [`docs/specs/`](specs/README.md) — goal, non-goals, design as built, invariants mapped to tests, and known gaps. New work starts with a spec there before code.
+
 ## Safety & permissions
 - [Permissions](permissions.md) — read/write/execute tiers, manual/accept/plan modes, allow rules, deny rules that beat everything.
 - [Doom-loop breaker](doom-loop.md) — the 4th identical tool call asks the user before more tokens burn.

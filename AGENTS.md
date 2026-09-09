@@ -3,6 +3,8 @@
 ## Knowledge base
 Feature docs live in `docs/` — **`docs/index.md` is the index**. Read the relevant page before changing a subsystem (each page states the invariants that must hold and names the source files); update the page in the same commit when behavior changes.
 
+Design records live in `docs/specs/` (`docs/specs/README.md` is the index and the template). Non-trivial work is spec-driven: write `docs/specs/<slug>.md` first, get it approved, implement against it, and update it in the same commit when the design changes. Trivial fixes skip the spec.
+
 ## Architecture (orientation)
 - The agent loop is `Agent.send()` in `src/core/agent.ts` — an async generator of `AgentEvent`s (src/core/events.ts), consumed by three frontends: Ink TUI (`src/tui/`), plain REPL (`src/modes/repl.ts`), headless print (`src/modes/print.ts`).
 - Permission tiers read/write/execute in `src/permissions/policy.ts`; deny rules beat allow/accept/--yolo (bash denies match chained-command segments); plan mode denies write/execute outright; chained bash commands always ask.

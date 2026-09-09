@@ -169,6 +169,15 @@ Banner unchanged in shape; `SUNSET` renamed `JADE`; the 42-column check re-runs 
 | Light-theme regression test | test only |
 | **Total** | **≈ −40 src lines** (→ ~9,940) |
 
+## Invariants
+- Only `●` marks a block; only `⎿` hangs under one; `❯` appears only as the input prompt and list cursor — `test/tui-system.test.tsx` ("retired glyphs are gone").
+- No line produced by `tool-line.ts` exceeds the width it was given, meta suffix included — `test/tool-line.test.ts` ("no result line ever exceeds the width").
+- The blank-line rule lives in `blockGap()` and nowhere else — `test/scroll.test.ts`.
+- No hardcoded hex and no `dimColor` in `src/tui`, `src/modes`, `src/terminal` — `test/tui-system.test.tsx`.
+- Esc inside a `SelectList` calls `onCancel`, never the global abort — `test/tui-system.test.tsx`.
+- A replayed tool call renders through `Agent.summarizeCall`, identical to the live summary — `test/tui-system.test.tsx`.
+- Permission previews never show `Index:`/`===`/`---`/`+++` lines and announce truncation — `test/tui-system.test.tsx`.
+
 ## Acceptance criteria
 
 1. `grep -rn '└\|»\|✻\|✦\|↻\|✎\|\[x\]\|>>' src/tui src/modes src/terminal` returns nothing.
@@ -190,3 +199,12 @@ Banner unchanged in shape; `SUNSET` renamed `JADE`; the 42-column check re-runs 
 
 Audit: `src/tui/App.tsx`, `src/tui/components/widgets.tsx`, `src/tui/theme.ts`, `src/tui/tool-line.ts`, `src/tui/scroll.ts`, `src/terminal/markdown.ts`, `src/terminal/format.ts` (2026-09-09).
 Conventions: Claude Code docs (statusline, interactive-mode, terminal-config, permission-modes, fullscreen) and CHANGELOG; Codex `codex-rs/tui` (`styles.md`, `exec_cell/render.rs`, `diff_render.rs`, `status_indicator_widget.rs`, `bottom_pane/*`); Gemini CLI `packages/cli/src/ui` (`Footer.tsx`, `ToolMessage.tsx`, `InputPrompt.tsx`, `ToolConfirmationMessage.tsx`); opencode `packages/tui/src` (`routes/session/*`, `component/prompt`); Crush `internal/ui` (`styles.go`, `chat/tools.go`, `dialog/permissions.go`); goose `goose-cli/src/session/output.rs`; clig.dev; no-color.org; Unicode `EastAsianWidth.txt` / `emoji-data.txt`.
+
+## Decisions
+- 2026-09-09 — Assistant dot is `fg`, not the brand green, so green means status only (Codex `styles.md` discipline) over "the green is aerin's voice" (theme.ts, 2026-09-03).
+- 2026-09-09 — `⎿` (Claude Code) over `└` (Codex) as the single child glyph: it was already the tool-result rail and reads as "belongs above" rather than "end of tree".
+- 2026-09-09 — `›` for user lines (Codex) so `❯` keeps one meaning; considered keeping `❯` and only fixing queued lines — rejected as still overloaded (prompt + selection + transcript).
+- 2026-09-09 — Turn receipt on every turn, not only ≥3s: it is the one place cost is visible per turn; the bell stays gated on 3s.
+- 2026-09-09 — `ctrl+o` hint once per turn; the footer's `? for shortcuts` covers discovery.
+- 2026-09-09 — Delete `terminal/gradient.ts` (−45 lines) and keep a per-row shade table for the logo instead of the gradient sampler; the light-theme fade uses a second shade table rather than a flat color.
+- 2026-09-09 — Esc in dialogs cancels the dialog (Gemini `No, suggest changes (esc)`) instead of aborting the turn; the global Esc handler now skips when a dialog is open.
