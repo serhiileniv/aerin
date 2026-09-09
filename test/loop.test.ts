@@ -96,7 +96,7 @@ describe("naming, quoting, invocation", () => {
       argv1: "/lib/node_modules/aerin-agent/dist/index.js",
       pathDirs: ["/usr/bin", "/opt/homebrew/bin"],
       platform: "darwin",
-      exists: (p) => p === "/opt/homebrew/bin/aerin",
+      exists: (p) => p === path.join("/opt/homebrew/bin", "aerin"), // path.join: backslashes on Windows
     });
     expect(onPath).toEqual(["aerin"]);
     const pinned = resolveAerinInvocation({
