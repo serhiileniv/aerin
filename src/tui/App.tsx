@@ -3,7 +3,7 @@ import { Box, Text, measureElement, useApp, useInput, useStdout, type DOMElement
 import type { LanguageModel, ModelMessage } from "ai";
 import type { Agent } from "../core/agent.js";
 import type { OnPermission, PermissionDecision, PermissionRequest } from "../core/events.js";
-import { persistModelChoice, persistProviderKey, type AerinConfig } from "../config/config.js";
+import { persistModelChoice, type AerinConfig } from "../config/config.js";
 import { renderCommand, type CustomCommand } from "../core/commands.js";
 import { listJobs } from "../tools/bash-jobs.js";
 import {
@@ -11,6 +11,9 @@ import {
   cycleMode,
   goalCommand,
   loopCommand,
+  connectCommand,
+  helpLines,
+  SLASH_COMMANDS,
   mcpCommand,
   resumeById,
   skillsCommand,
@@ -21,8 +24,8 @@ import {
 } from "../core/session-commands.js";
 import { allKnownModels, modelInfo } from "../providers/models.js";
 import { PROVIDERS, providersWithKeys, resolveApiKey } from "../providers/registry.js";
-import { PROVIDER_CATALOG, catalogEntry, keyLooksLike } from "../providers/catalog.js";
-import { discoverModels, formatModelLabel, isSmallModel, listProviderModels, type DiscoveredModel } from "../providers/list-models.js";
+import { PROVIDER_CATALOG, catalogEntry } from "../providers/catalog.js";
+import { discoverModels, formatModelLabel, isSmallModel, type DiscoveredModel } from "../providers/list-models.js";
 import { modelsDevProviders } from "../providers/modelsdev.js";
 import { VERSION } from "../version.js";
 import { SessionStore, type SessionSummary } from "../session/store.js";
@@ -34,7 +37,8 @@ import { anchorOffset, buildFlatLines, prefixUserLines, scrollWindow, stepScroll
 import { colorizeDiff, messageText, redactSecrets, relativeTime, setTerminalTitle } from "../terminal/format.js";
 import { expandMentions } from "../core/mentions.js";
 import { DiffText, FilterSelect, LineInput, SelectList, Spinner } from "./components/widgets.js";
-import { C, isLightTheme } from "./theme.js";
+import { formatToolBlock, formatToolCall, indentExpanded } from "./tool-line.js";
+import { C, isLightTheme, paint } from "./theme.js";
 
 /** Everything the TUI needs, assembled by run.tsx. */
 export interface TuiSetup {
@@ -156,23 +160,6 @@ interface PendingPermission {
   resolve: (d: PermissionDecision) => void;
 }
 
-const SLASH_COMMANDS = [
-  { name: "/model", description: "switch model — pick from a live list, or /model provider/id" },
-  { name: "/plan", description: "toggle plan mode — read-only exploration, agent presents a plan" },
-  { name: "/undo", description: "revert the file changes of the last turn (incl. bash side effects)" },
-  { name: "/redo", description: "re-apply changes reverted by /undo" },
-  { name: "/connect", description: "connect a provider — catalog, custom OpenAI- or Anthropic-compatible endpoints" },
-  { name: "/compact", description: "summarize the conversation to free context" },
-  { name: "/clear", description: "clear conversation history" },
-  { name: "/resume", description: "resume a previous conversation in this directory" },
-  { name: "/status", description: "session overview — model, mode, tokens, servers, jobs" },
-  { name: "/goal", description: "autonomous goal loop — /goal <text> works until a judge sees it done; /goal clear stops" },
-  { name: "/loop", description: "run a prompt on a schedule via every — /loop 15m <prompt>; /loop lists, /loop log|run|stop <name>" },
-  { name: "/skills", description: "list available skill packs" },
-  { name: "/mcp", description: "list connected MCP servers and their tools" },
-  { name: "/help", description: "show commands and keys" },
-  { name: "/exit", description: "quit aerin" },
-] as const;
 
 /** ANSI Shadow wordmark shown in the startup banner (37 cols × 6 rows). */
 const LOGO = [
@@ -188,10 +175,9 @@ const MIN_LOGO_COLUMNS = 42;
  * traditional pigment Emerald Green at the bottom — three real named colors. */
 const SUNSET = ["#50c878", "#30a96a", "#108a5b", "#017545", "#026c26", "#046307"] as const;
 
-/** Truecolor ANSI paint for banner text baked into the transcript. */
-function paint(s: string, hex: string, bold = false): string {
-  const n = parseInt(hex.slice(1), 16);
-  return `${bold ? "\x1b[1m" : ""}\x1b[38;2;${(n >> 16) & 255};${(n >> 8) & 255};${n & 255}m${s}\x1b[0m`;
+/** Text color per transcript kind; undefined = terminal default. */
+function kindColor(kind: TranscriptKind): string | undefined {
+  return kind === "user" ? C.fg : kind === "error" || kind === "tool-error" ? C.error : kind === "info" ? C.dim : undefined;
 }
 
 /** "● " on the first line, aligned indent on the rest — Claude Code-style blocks. */
@@ -201,16 +187,6 @@ function withDot(text: string): string {
 }
 
 /** One-line result stat for the result line: short outputs verbatim, long ones as a count. */
-function resultStat(output: string, isError: boolean): string {
-  const trimmed = output.trim();
-  if (!trimmed) return "(no output)";
-  const lines = trimmed.split("\n");
-  const first = (lines[0] ?? "").slice(0, 120);
-  if (isError) return first;
-  if (lines.length === 1 && first.length <= 100) return first;
-  return `${lines.length} lines`;
-}
-
 /** "~" for home, middle-ellipsis for long paths — keeps the header tidy. */
 function shortenPath(p: string, max = 45): string {
   const home = process.env["USERPROFILE"] ?? process.env["HOME"] ?? "";
@@ -312,6 +288,9 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
   const turnStartRef = useRef(0);
   const lastToolResultRef = useRef<{ summary: string; output: string; isError: boolean } | null>(null);
   const lastSummaryRef = useRef<string | null>(null);
+  /** The call whose result is pending: its transcript item is rewritten in place when the result lands. */
+  const activeToolRef = useRef<{ key: number; summary: string; startedAt: number } | null>(null);
+  const [activeTool, setActiveTool] = useState<string | null>(null);
 
   const pushItem = useCallback((kind: TranscriptItem["kind"], text: string) => {
     if (kind === "user") setScrollOffset(0); // your own message — jump back to live
@@ -452,22 +431,35 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
               if (text.trim()) pushAssistant(text);
               break;
             }
-            case "tool-call":
-              pushItem("tool", `● ${event.summary}`);
+            case "tool-call": {
+              const key = nextKey.current++;
+              setItems((prev) => [...prev, { key, kind: "tool", text: formatToolBlock(event.summary) }]);
+              activeToolRef.current = { key, summary: event.summary, startedAt: Date.now() };
+              setActiveTool(event.summary);
               lastSummaryRef.current = event.summary;
               break;
+            }
             case "tool-result": {
-              const stat = resultStat(event.output, event.isError);
-              const collapsed = stat !== event.output.trim();
-              lastToolResultRef.current = {
-                summary: lastSummaryRef.current ?? event.name,
+              const active = activeToolRef.current;
+              activeToolRef.current = null;
+              setActiveTool(null);
+              const summary = active?.summary ?? lastSummaryRef.current ?? event.name;
+              const result = {
                 output: event.output,
                 isError: event.isError,
+                ...(active ? { ms: Date.now() - active.startedAt } : {}),
               };
-              pushItem(
-                event.isError ? "tool-error" : "info",
-                `  └ ${event.isError ? "✗ " : ""}${stat}${collapsed ? " (ctrl+o expand)" : ""}`,
-              );
+              lastToolResultRef.current = { summary, output: event.output, isError: event.isError };
+              const block = formatToolBlock(summary, result, mdWidth());
+              setItems((prev) => {
+                // Rewrite the call's own item when nothing (a diff preview, say)
+                // landed in between; otherwise mark the call and append the result.
+                const idx = active ? prev.findIndex((it) => it.key === active.key) : -1;
+                if (idx === prev.length - 1) return [...prev.slice(0, idx), { ...prev[idx]!, text: block }];
+                const [call, ...rest] = block.split("\n");
+                const marked = idx < 0 ? prev : prev.map((it, i) => (i === idx ? { ...it, text: call ?? "" } : it));
+                return [...marked, { key: nextKey.current++, kind: "tool", text: idx < 0 ? block : rest.join("\n") }];
+              });
               break;
             }
             case "compaction":
@@ -547,6 +539,8 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       } finally {
         workingRef.current = false;
         setWorking(false);
+        setActiveTool(null);
+        activeToolRef.current = null;
         setThinking(false);
         setReasoningTail("");
         reasoningBuf.current = "";
@@ -603,14 +597,9 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         if (Array.isArray(m.content)) {
           for (const part of m.content as { type?: string; text?: string; toolName?: string }[]) {
             if (part?.type === "text" && part.text?.trim()) {
-              add.push({
-                key: nextKey.current++,
-                kind: "assistant",
-                text: withDot(renderMarkdown(part.text, mdWidth())),
-                raw: part.text,
-              });
+              add.push({ key: nextKey.current++, kind: "assistant", text: withDot(renderMarkdown(part.text, mdWidth())), raw: part.text });
             } else if (part?.type === "tool-call" && part.toolName) {
-              add.push({ key: nextKey.current++, kind: "tool", text: `● ${part.toolName}` });
+              add.push({ key: nextKey.current++, kind: "tool", text: formatToolCall(part.toolName, "ok") });
             }
           }
         } else {
@@ -652,13 +641,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       const connected = new Set(providersWithKeys(setup.config));
       const cached = Object.entries(allKnownModels())
         .filter(([id]) => connected.has(id.split("/")[0] ?? ""))
-        .map(([id, info]) => ({
-          id,
-          provider: id.split("/")[0] ?? "",
-          contextWindow: info.contextWindow,
-          ...(info.inputPerMTok !== undefined ? { inputPerMTok: info.inputPerMTok } : {}),
-          ...(info.outputPerMTok !== undefined ? { outputPerMTok: info.outputPerMTok } : {}),
-        }));
+        .map(([id, info]) => ({ ...info, id, provider: id.split("/")[0] ?? "" }));
       if (cached.length > 0) {
         pushItem("info", "(provider lists unreachable — showing cached registry data)");
         setModelPicker(cached);
@@ -674,50 +657,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
 
   const saveConnection = useCallback(
     async (id: string, key: string, baseURL?: string, protocol?: ConnectProtocol): Promise<void> => {
-      // A key whose format belongs to another provider is refused outright.
-      const looks = key ? keyLooksLike(key) : undefined;
-      if (looks && looks !== id) {
-        pushItem(
-          "error",
-          `✗ that looks like a ${looks} key (${key.slice(0, 7)}…), not a ${id} key — nothing saved. Run /connect ${looks} instead.`,
-        );
-        return;
-      }
-      try {
-        await persistProviderKey(id, key, baseURL, protocol);
-        setup.config.providers = {
-          ...setup.config.providers,
-          [id]: {
-            ...setup.config.providers?.[id],
-            ...(key ? { apiKey: key } : {}),
-            ...(baseURL ? { baseURL } : {}),
-            ...(protocol ? { protocol } : {}),
-          },
-        };
-      } catch (err) {
-        pushItem("error", err instanceof Error ? err.message : String(err));
-        return;
-      }
-      // Validate the key RIGHT NOW — a wrong key must be loud, not a mystery later.
-      pushItem("info", `(checking the ${id} key…)`);
-      try {
-        const models = await listProviderModels(id, setup.config);
-        if (!models || models.length === 0) {
-          pushItem(
-            "error",
-            `✗ ${id}: the key was saved but the provider returned no models — it may be the wrong provider's key. Re-run /connect ${id} with the right one.`,
-          );
-          return;
-        }
-        pushItem("info", `✓ ${id} key works — ${models.length} models available`);
-        await openModelPicker();
-      } catch (err) {
-        pushItem(
-          "error",
-          `✗ ${id} REJECTED the key (${err instanceof Error ? err.message : err}). ` +
-            `Did you paste a different provider's key? The key is saved but unusable — re-run /connect ${id}.`,
-        );
-      }
+      if (await connectCommand(setup, id, key, baseURL, protocol, pushItem)) await openModelPicker();
     },
     [setup, pushItem, openModelPicker],
   );
@@ -728,18 +668,13 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       const arg = rest.join(" ");
       switch (cmd) {
         case "/help": {
-          const cmds = [
-            ...SLASH_COMMANDS,
-            ...setup.customCommands.map((c) => ({ name: `/${c.name}`, description: `(custom) ${c.description}` })),
-          ];
-          const pad = Math.max(...cmds.map((c) => c.name.length)) + 3;
           pushItem(
             "info",
             [
               `aerin v${VERSION} — open-source coding agent`,
               "",
               "Commands:",
-              ...cmds.map((c) => `  ${c.name.padEnd(pad)}${c.description}`),
+              ...helpLines(setup),
               "",
               "Shortcuts:",
               "  Esc          interrupt the agent · clear the input",
@@ -952,7 +887,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       if (last) {
         const lines = last.output.split("\n");
         const shown = lines.length > 300 ? [...lines.slice(0, 300), `[… ${lines.length - 300} more lines]`] : lines;
-        pushItem(last.isError ? "tool-error" : "info", `  └ ${last.summary} — full output:\n${shown.join("\n")}`);
+        pushItem(last.isError ? "tool-error" : "info", indentExpanded(`${last.summary} — full output:\n${shown.join("\n")}`));
         lastToolResultRef.current = null; // one-shot: re-arms on the next tool result
       }
       return;
@@ -1116,15 +1051,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
                 <Text
                   wrap="truncate-end"
                   bold={l.kind === "user"}
-                  color={
-                    l.kind === "user"
-                      ? C.fg
-                      : l.kind === "error" || l.kind === "tool-error"
-                        ? C.error
-                        : l.kind === "info"
-                          ? C.dim
-                          : undefined
-                  }
+                  color={kindColor(l.kind)}
                 >
                   {l.text || " "}
                 </Text>
@@ -1140,15 +1067,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
           >
             <Text
               bold={item.kind === "user"}
-              color={
-                item.kind === "user"
-                  ? C.fg
-                  : item.kind === "error" || item.kind === "tool-error"
-                    ? C.error
-                    : item.kind === "info"
-                      ? C.dim
-                      : undefined
-              }
+              color={kindColor(item.kind)}
             >
               {item.kind === "user" ? prefixUserLines(item.text) : item.text}
             </Text>
@@ -1196,7 +1115,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       {working && !permission && !question ? (
         <Box flexShrink={0}>
           <Spinner
-            label={thinking ? "thinking — Esc to interrupt" : "working — Esc to interrupt"}
+            label={`${activeTool ? activeTool.slice(0, 60) : thinking ? "thinking" : "working"} — Esc to interrupt`}
             since={turnStartRef.current}
           />
         </Box>

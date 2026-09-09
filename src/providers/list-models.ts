@@ -159,24 +159,12 @@ export async function detectOllamaModel(config: AerinConfig): Promise<string | u
 function customListerFor(name: string): Lister {
   return async (cfg) => {
     const entry = cfg.providers?.[name];
-    const baseURL = entry?.baseURL;
-    if (!baseURL) return undefined;
-    const key = entry?.apiKey;
-    const root = baseURL.replace(/\/$/, "");
-    const url =
-      entry?.protocol === "anthropic" ? `${root}/models?limit=100` : `${root}/models`;
-    const authHeaders: Record<string, string> = {};
-    if (key) {
-      if (entry?.protocol === "anthropic") {
-        authHeaders["x-api-key"] = key;
-        authHeaders["anthropic-version"] = "2023-06-01";
-      } else {
-        authHeaders["Authorization"] = `Bearer ${key}`;
-      }
-    }
-    const data = (await fetchJson(url, { ...authHeaders, ...entry?.headers })) as {
-      data?: { id: string }[];
-    };
+    if (!entry?.baseURL) return undefined;
+    const anthropic = entry.protocol === "anthropic";
+    const url = `${entry.baseURL.replace(/\/$/, "")}/models${anthropic ? "?limit=100" : ""}`;
+    const key = entry.apiKey;
+    const auth: Record<string, string> = !key ? {} : anthropic ? { "x-api-key": key, "anthropic-version": "2023-06-01" } : { Authorization: `Bearer ${key}` };
+    const data = (await fetchJson(url, { ...auth, ...entry.headers })) as { data?: { id: string }[] };
     return (data.data ?? []).map((m) => ({ id: m.id }));
   };
 }
@@ -207,10 +195,7 @@ export async function discoverModels(config: AerinConfig): Promise<DiscoveryResu
   ]).catch(() => 0);
 
   // Custom OpenAI-compatible providers: query <baseURL>/models like OpenAI.
-  const customListers: Record<string, Lister> = {};
-  for (const name of customProviders(config)) {
-    customListers[name] = customListerFor(name);
-  }
+  const customListers = Object.fromEntries(customProviders(config).map((n) => [n, customListerFor(n)]));
 
   await Promise.all(
     Object.entries({ ...listers, ...customListers }).map(async ([provider, list]) => {

@@ -3,6 +3,9 @@ import type { PermissionMode, PermissionPolicy } from "../permissions/policy.js"
 import type { Skill } from "./skills.js";
 import type { CustomCommand } from "./commands.js";
 import { SessionStore } from "../session/store.js";
+import { persistProviderKey, type AerinConfig } from "../config/config.js";
+import { keyLooksLike } from "../providers/catalog.js";
+import { listProviderModels } from "../providers/list-models.js";
 import { loopCommand as runLoop } from "./loop.js";
 import type { ModelMessage } from "ai";
 
@@ -21,6 +24,73 @@ export interface CommandCtx {
   customCommands: readonly CustomCommand[];
   sessionId: string;
   cwd: string;
+}
+
+export const SLASH_COMMANDS = [
+  { name: "/model", description: "switch model — pick from a live list, or /model provider/id" },
+  { name: "/plan", description: "toggle plan mode — read-only exploration, agent presents a plan" },
+  { name: "/undo", description: "revert the file changes of the last turn (incl. bash side effects)" },
+  { name: "/redo", description: "re-apply changes reverted by /undo" },
+  { name: "/connect", description: "connect a provider — catalog, custom OpenAI- or Anthropic-compatible endpoints" },
+  { name: "/compact", description: "summarize the conversation to free context" },
+  { name: "/clear", description: "clear conversation history" },
+  { name: "/resume", description: "resume a previous conversation in this directory" },
+  { name: "/status", description: "session overview — model, mode, tokens, servers, jobs" },
+  { name: "/goal", description: "autonomous goal loop — /goal <text> works until a judge sees it done; /goal clear stops" },
+  { name: "/loop", description: "run a prompt on a schedule via every — /loop 15m <prompt>; /loop lists, /loop log|run|stop <name>" },
+  { name: "/skills", description: "list available skill packs" },
+  { name: "/mcp", description: "list connected MCP servers and their tools" },
+  { name: "/help", description: "show commands and keys" },
+  { name: "/exit", description: "quit aerin" },
+] as const;
+
+/** `/help` body shared by both frontends: built-ins plus this project's custom commands. */
+export function helpLines(ctx: Pick<CommandCtx, "customCommands">, extra: { name: string; description: string }[] = []): string[] {
+  const cmds = [...SLASH_COMMANDS, ...extra, ...ctx.customCommands.map((c) => ({ name: `/${c.name}`, description: `(custom) ${c.description}` }))];
+  const pad = Math.max(...cmds.map((c) => c.name.length)) + 3;
+  return cmds.map((c) => `  ${c.name.padEnd(pad)}${c.description}`);
+}
+
+/**
+ * Save a provider key and validate it RIGHT NOW — a wrong key must be loud,
+ * not a mystery later. Messages go through `emit`; returns true when the key works.
+ */
+export async function connectCommand(
+  ctx: { config: AerinConfig },
+  id: string,
+  key: string,
+  baseURL: string | undefined,
+  protocol: "openai" | "anthropic" | undefined,
+  emit: (kind: "info" | "error", text: string) => void,
+): Promise<boolean> {
+  const looks = key ? keyLooksLike(key) : undefined;
+  if (looks && looks !== id) {
+    emit("error", `✗ that looks like a ${looks} key (${key.slice(0, 7)}…), not a ${id} key — nothing saved. Run /connect ${looks} instead.`);
+    return false;
+  }
+  try {
+    await persistProviderKey(id, key, baseURL, protocol);
+    ctx.config.providers = {
+      ...ctx.config.providers,
+      [id]: { ...ctx.config.providers?.[id], ...(key ? { apiKey: key } : {}), ...(baseURL ? { baseURL } : {}), ...(protocol ? { protocol } : {}) },
+    };
+  } catch (err) {
+    emit("error", err instanceof Error ? err.message : String(err));
+    return false;
+  }
+  emit("info", `(checking the ${id} key…)`);
+  try {
+    const models = await listProviderModels(id, ctx.config);
+    if (!models || models.length === 0) {
+      emit("error", `✗ ${id}: the key was saved but the provider returned no models — it may be the wrong provider's key. Re-run /connect ${id} with the right one.`);
+      return false;
+    }
+    emit("info", `✓ ${id} key works — ${models.length} models available`);
+    return true;
+  } catch (err) {
+    emit("error", `✗ ${id} REJECTED the key (${err instanceof Error ? err.message : err}). Did you paste a different provider's key? The key is saved but unusable — re-run /connect ${id}.`);
+    return false;
+  }
 }
 
 export interface GoalResult {

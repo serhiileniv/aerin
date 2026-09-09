@@ -94,15 +94,13 @@ function ensure(width: number): Marked {
   );
   // marked-terminal's tables are content-sized and overflow narrow terminals,
   // shearing every border when the terminal wraps them. Fit them to `width`.
+  type Cell = Tokens.Table["header"][number];
   instance.use({
     renderer: {
-      table(this: { parser: { parseInline(tokens: Tokens.Table["header"][number]["tokens"]): string } }, token: Tokens.Table) {
-        const cell = (c: { tokens: Tokens.Table["header"][number]["tokens"] }) => this.parser.parseInline(c.tokens);
-        return `${renderTable(
-          { header: token.header.map(cell), rows: token.rows.map((r) => r.map(cell)), align: token.align },
-          width,
-          { border: dim, head: colorEnabled ? (s) => `\x1b[1m${s}\x1b[22m` : (s) => s },
-        )}\n\n`;
+      table(this: { parser: { parseInline(tokens: Cell["tokens"]): string } }, token: Tokens.Table) {
+        const cell = (c: Cell) => this.parser.parseInline(c.tokens);
+        const spec = { header: token.header.map(cell), rows: token.rows.map((r) => r.map(cell)), align: token.align };
+        return `${renderTable(spec, width, { border: dim, head: colorEnabled ? (s) => `\x1b[1m${s}\x1b[22m` : (s) => s })}\n\n`;
       },
     },
   });

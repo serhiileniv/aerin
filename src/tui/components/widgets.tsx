@@ -259,40 +259,30 @@ export function LineInput(props: {
   // Suggestions render ABOVE the input row (Claude Code-style): the input is
   // pinned to the bottom of the screen, so anything below it would be clipped
   // into the bar; above, the list pushes the transcript up and stays visible.
+  const row = (key: string, selected: boolean, text: string) => (
+    <Text key={key} backgroundColor={selected ? C.accent : undefined} color={selected ? "#000000" : C.dim}>
+      {selected ? "❯ " : "  "}
+      {text}
+      {"  "}
+    </Text>
+  );
+  const cursorCell = (ch: string) =>
+    props.active ? (
+      <Text backgroundColor={C.fg} color="#000000">
+        {ch}
+      </Text>
+    ) : (
+      <Text>{ch}</Text>
+    );
   return (
     <Box flexDirection="column">
-      {matches.map((m, i) => (
-        <Text
-          key={m.name}
-          backgroundColor={i === cSugg ? C.accent : undefined}
-          color={i === cSugg ? "#000000" : C.dim}
-        >
-          {i === cSugg ? "❯ " : "  "}
-          {m.name.padEnd(pad)}
-          {m.description}
-          {"  "}
-        </Text>
-      ))}
-      {atMatch && atMatch[0].length > 1
-        ? fileMatches.map((f, i) => (
-            <Text
-              key={f}
-              backgroundColor={i === cFile ? C.accent : undefined}
-              color={i === cFile ? "#000000" : C.dim}
-            >
-              {i === cFile ? "❯ " : "  "}@{f}{"  "}
-            </Text>
-          ))
-        : null}
+      {matches.map((m, i) => row(m.name, i === cSugg, `${m.name.padEnd(pad)}${m.description}`))}
+      {atMatch && atMatch[0].length > 1 ? fileMatches.map((f, i) => row(f, i === cFile, `@${f}`)) : null}
       <Box>
         <Text color={C.dim}>{props.prompt}</Text>
         {!value && props.placeholder ? (
           <>
-            {props.active ? (
-              <Text backgroundColor={C.fg} color="#000000">
-                {props.placeholder[0] ?? " "}
-              </Text>
-            ) : null}
+            {props.active ? cursorCell(props.placeholder[0] ?? " ") : null}
             <Text color={C.dim} dimColor>
               {props.active ? props.placeholder.slice(1) : props.placeholder}
             </Text>
@@ -300,13 +290,7 @@ export function LineInput(props: {
         ) : (
           <>
             <Text>{before}</Text>
-            {props.active ? (
-              <Text backgroundColor={C.fg} color="#000000">
-                {at}
-              </Text>
-            ) : (
-              <Text>{at}</Text>
-            )}
+            {cursorCell(at)}
             <Text>{after}</Text>
           </>
         )}

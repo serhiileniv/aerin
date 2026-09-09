@@ -3,7 +3,7 @@ import { render } from "ink";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import type { ModelMessage } from "ai";
-import { setupAgent, stopMcpServers } from "../cli.js";
+import { setupAgent, teardown, type RunFlags } from "../cli.js";
 import type { AskUser } from "../tools/question-tool.js";
 import { renderMarkdown } from "../terminal/markdown.js";
 import { messageText, redactSecrets, setTerminalTitle } from "../terminal/format.js";
@@ -12,17 +12,7 @@ import { resolveModel } from "../providers/registry.js";
 import type { OnPermission } from "../core/events.js";
 import { App, type TuiSetup } from "./App.js";
 
-interface TuiFlags {
-  model?: string;
-  yolo: boolean;
-  continue: boolean;
-  resume?: string;
-  allowOutsideCwd: boolean;
-  cwd?: string;
-  mcp: boolean;
-}
-
-export async function runTui(flags: TuiFlags, initialPrompt?: string): Promise<void> {
+export async function runTui(flags: RunFlags, initialPrompt?: string): Promise<void> {
   // The Agent needs onPermission at construction, but the dialog only exists
   // once the App mounts — so route through swappable refs.
   const onPermissionRef: { current: OnPermission } = {
@@ -146,14 +136,7 @@ export async function runTui(flags: TuiFlags, initialPrompt?: string): Promise<v
     // The alt screen took the conversation with it — leave a plain transcript
     // in the normal terminal so the session survives in scrollback.
     printTranscript(setup.agent.history);
-    const { runLifecycleHook } = await import("../core/hooks.js");
-    await runLifecycleHook(
-      setup.config.hooks,
-      "session:end",
-      { sessionId: setup.sessionId, messages: setup.agent.history.length },
-      setup.cwd,
-    );
-    await stopMcpServers(setup.mcpConnections);
+    await teardown(setup);
     // index.ts force-exits after main() resolves — nothing left to do here.
   }
 }

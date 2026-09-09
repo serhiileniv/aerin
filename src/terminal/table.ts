@@ -4,24 +4,16 @@ import { wrapAnsiLine } from "./wrap-ansi.js";
  * Width-aware markdown tables. marked-terminal sizes columns to their content
  * and lets the terminal wrap the result, which shears every border once a
  * table is wider than the screen. This fits the columns into `width`, word-
- * wraps cells, and draws the box itself. ANSI styling inside cells is kept
- * (it is zero-width for layout).
+ * wraps cells, and draws the box itself. ANSI inside cells is zero-width.
  */
 
 export type Align = "left" | "center" | "right" | null;
-
 export interface TableSpec {
   header: string[];
   rows: string[][];
   align?: readonly Align[];
 }
-
-export interface TableStyle {
-  /** Border characters (default dim/identity). */
-  border?: (s: string) => string;
-  /** Header cell text (default bold). */
-  head?: (s: string) => string;
-}
+export type TableStyle = { border?: (s: string) => string; head?: (s: string) => string };
 
 const ANSI_RE = /\x1b\[[0-9;]*m|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
 const MIN_COL = 3;
@@ -35,73 +27,48 @@ export function wrapCell(text: string, width: number): string[] {
   const lines: string[] = [];
   for (const para of text.split("\n")) {
     let line = "";
-    let lineWidth = 0;
-    for (const word of para.split(/ +/)) {
-      if (!word) continue;
+    let used = 0;
+    for (const word of para.split(/ +/).filter(Boolean)) {
       const w = visibleWidth(word);
-      if (lineWidth === 0) {
-        if (w <= width) {
-          line = word;
-          lineWidth = w;
-        } else {
-          const parts = wrapAnsiLine(word, width);
-          lines.push(...parts.slice(0, -1));
-          line = parts.at(-1) ?? "";
-          lineWidth = visibleWidth(line);
-        }
-      } else if (lineWidth + 1 + w <= width) {
+      if (used > 0 && used + 1 + w <= width) {
         line += ` ${word}`;
-        lineWidth += 1 + w;
-      } else {
-        lines.push(line);
-        if (w <= width) {
-          line = word;
-          lineWidth = w;
-        } else {
-          const parts = wrapAnsiLine(word, width);
-          lines.push(...parts.slice(0, -1));
-          line = parts.at(-1) ?? "";
-          lineWidth = visibleWidth(line);
-        }
+        used += 1 + w;
+        continue;
       }
+      if (used > 0) lines.push(line);
+      const parts = w <= width ? [word] : wrapAnsiLine(word, width);
+      lines.push(...parts.slice(0, -1));
+      line = parts.at(-1) ?? "";
+      used = visibleWidth(line);
     }
     lines.push(line);
   }
-  return lines.length > 0 ? lines : [""];
+  return lines;
 }
 
 /**
  * Column widths that fit `width` (borders and padding included): natural
- * widths when they fit, otherwise the widest columns give way first. Never
- * below MIN_COL — a screen narrower than that overflows, nothing else to do.
+ * widths when they fit, otherwise the widest columns give way first, together
+ * when tied. Never below MIN_COL — narrower screens overflow, nothing to do.
  */
 export function fitColumns(natural: readonly number[], width: number): number[] {
-  const cols = natural.length;
   const widths = natural.map((n) => Math.max(1, n));
-  const available = width - (3 * cols + 1);
-  let total = widths.reduce((a, b) => a + b, 0);
-  while (total > available) {
+  const available = width - (3 * widths.length + 1);
+  const sum = () => widths.reduce((a, b) => a + b, 0);
+  for (let total = sum(); total > available; total = sum()) {
     const max = Math.max(...widths);
     if (max <= MIN_COL) break;
     const widest = widths.flatMap((w, i) => (w === max ? [i] : []));
-    const runnerUp = Math.max(MIN_COL, ...widths.filter((w) => w < max));
-    // Bring every widest column down together — to the next widest, or as far as needed.
-    const next = Math.max(runnerUp, max - Math.ceil((total - available) / widest.length));
+    const next = Math.max(MIN_COL, ...widths.filter((w) => w < max), max - Math.ceil((total - available) / widest.length));
     for (const i of widest) widths[i] = next;
-    total = widths.reduce((a, b) => a + b, 0);
   }
   return widths;
 }
 
 function pad(s: string, width: number, align: Align): string {
-  const gap = width - visibleWidth(s);
-  if (gap <= 0) return s;
-  if (align === "right") return " ".repeat(gap) + s;
-  if (align === "center") {
-    const left = Math.floor(gap / 2);
-    return " ".repeat(left) + s + " ".repeat(gap - left);
-  }
-  return s + " ".repeat(gap);
+  const gap = Math.max(0, width - visibleWidth(s));
+  const left = align === "right" ? gap : align === "center" ? Math.floor(gap / 2) : 0;
+  return " ".repeat(left) + s + " ".repeat(gap - left);
 }
 
 export function renderTable(spec: TableSpec, width: number, style: TableStyle = {}): string {
@@ -110,34 +77,23 @@ export function renderTable(spec: TableSpec, width: number, style: TableStyle = 
   const cols = Math.max(spec.header.length, ...spec.rows.map((r) => r.length));
   if (cols === 0) return "";
   const cell = (row: readonly string[], i: number) => row[i] ?? "";
-  const natural = Array.from({ length: cols }, (_, i) =>
-    Math.max(visibleWidth(cell(spec.header, i)), ...spec.rows.map((r) => visibleWidth(cell(r, i)))),
+  const widths = fitColumns(
+    Array.from({ length: cols }, (_, i) => Math.max(visibleWidth(cell(spec.header, i)), ...spec.rows.map((r) => visibleWidth(cell(r, i))))),
+    width,
   );
-  const widths = fitColumns(natural, width);
-
-  const line = (l: string, m: string, r: string) => border(l + widths.map((w) => "─".repeat(w + 2)).join(m) + r);
+  const rule = (l: string, m: string, r: string) => border(l + widths.map((w) => "─".repeat(w + 2)).join(m) + r);
   const bar = border("│");
   const renderRow = (row: readonly string[], isHead: boolean): string[] => {
     const wrapped = widths.map((w, i) => wrapCell(cell(row, i), w));
-    const height = Math.max(...wrapped.map((c) => c.length));
-    const out: string[] = [];
-    for (let y = 0; y < height; y++) {
+    return Array.from({ length: Math.max(...wrapped.map((c) => c.length)) }, (_, y) => {
       const cells = widths.map((w, i) => {
         const text = wrapped[i]?.[y] ?? "";
         const padded = pad(text, w, isHead ? "center" : (spec.align?.[i] ?? null));
         return ` ${isHead && text ? head(padded) : padded} `;
       });
-      out.push(bar + cells.join(bar) + bar);
-    }
-    return out;
+      return bar + cells.join(bar) + bar;
+    });
   };
-
-  const lines: string[] = [line("┌", "┬", "┐"), ...renderRow(spec.header, true)];
-  if (spec.rows.length > 0) lines.push(line("├", "┼", "┤"));
-  spec.rows.forEach((row, i) => {
-    lines.push(...renderRow(row, false));
-    if (i < spec.rows.length - 1) lines.push(line("├", "┼", "┤"));
-  });
-  lines.push(line("└", "┴", "┘"));
-  return lines.join("\n");
+  const body = spec.rows.flatMap((row, i) => [...(i === 0 ? [] : [rule("├", "┼", "┤")]), ...renderRow(row, false)]);
+  return [rule("┌", "┬", "┐"), ...renderRow(spec.header, true), ...(body.length ? [rule("├", "┼", "┤"), ...body] : []), rule("└", "┴", "┘")].join("\n");
 }

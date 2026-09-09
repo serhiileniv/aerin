@@ -1,24 +1,10 @@
-import { setupAgent, stopMcpServers } from "../cli.js";
+import { setupAgent, stopMcpServers, teardown, type RunFlags } from "../cli.js";
 import type { AgentEvent } from "../core/events.js";
 
 export type OutputFormat = "text" | "json";
 export const OUTPUT_FORMATS: readonly OutputFormat[] = ["text", "json"];
 
-interface PrintFlags {
-  model?: string;
-  yolo: boolean;
-  continue: boolean;
-  resume?: string;
-  allowOutsideCwd: boolean;
-  cwd?: string;
-  mcp: boolean;
-  outputFormat?: OutputFormat;
-}
-
-export interface PrintRunMeta {
-  sessionId: string;
-  model: string;
-}
+type PrintFlags = RunFlags & { outputFormat?: OutputFormat };
 
 /** The one JSON object `--output-format json` prints (a single line on stdout). */
 export interface PrintJsonResult {
@@ -31,117 +17,82 @@ export interface PrintJsonResult {
   usage: { inputTokens: number; outputTokens: number; costUsd?: number };
 }
 
-export interface PrintFormatter {
-  onEvent(event: AgentEvent): void;
-  /** Flush; returns true when the run hit an error. */
-  finish(meta: PrintRunMeta): boolean;
+/** One stderr line per event kind that matters to a script reader. */
+export function diagnostic(e: AgentEvent): string | undefined {
+  switch (e.type) {
+    case "tool-call":
+      return `[tool] ${e.summary}`;
+    case "tool-result":
+      return e.isError ? `[tool error] ${e.output.slice(0, 200)}` : undefined;
+    case "retry":
+      return `[retry ${e.attempt}/${e.maxAttempts}] ${e.message.slice(0, 120)}`;
+    case "failover":
+      return `[failover] ${e.from} -> ${e.to}: ${e.message.slice(0, 120)}`;
+    case "goal-check":
+      return e.done ? `[goal complete] ${e.reason}` : `[goal continues ${e.turnsLeft}] ${e.reason}`;
+    case "subagent-update":
+      return e.status === "running" ? undefined : `[agent ${e.status}] ${e.description} (${e.toolCalls} tools, ${e.inputTokens + e.outputTokens} tok)`;
+    case "error":
+      return `error: ${e.message}`;
+    default:
+      return undefined;
+  }
 }
 
 /**
  * Turns the event stream into stdout for scripts. `text` streams the assistant's
- * text as it arrives and guarantees exactly one newline after each message and
- * at the end (a message that already ends in "\n" is not doubled). `json`
- * buffers and emits one object at the end. Diagnostics (tool calls, retries,
- * errors) always go to stderr so stdout stays parseable.
+ * text as it arrives with exactly one newline after each message and at the end
+ * (a message already ending in "\n" is not doubled); `json` buffers and emits one
+ * object at the end. Diagnostics always go to stderr so stdout stays parseable.
  */
-export function createPrintFormatter(
-  format: OutputFormat,
-  out: (s: string) => void,
-  err: (s: string) => void,
-): PrintFormatter {
+export function createPrintFormatter(format: OutputFormat, out: (s: string) => void, err: (s: string) => void) {
   const messages: string[] = [];
+  const errors: string[] = [];
+  const usage = { inputTokens: 0, outputTokens: 0 } as PrintJsonResult["usage"];
   let current = "";
   let lineOpen = false;
   let toolCalls = 0;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let costUsd: number | undefined;
-  const errors: string[] = [];
-
   const endMessage = () => {
-    if (format === "text") {
-      if (lineOpen) out("\n");
-      lineOpen = false;
-    } else if (current) {
-      messages.push(current.replace(/\n+$/, ""));
-    }
+    if (format === "text" && lineOpen) out("\n");
+    if (current) messages.push(current.replace(/\n+$/, ""));
+    lineOpen = false;
     current = "";
   };
-
   return {
-    onEvent(event) {
-      switch (event.type) {
-        case "text-delta":
-          if (!event.text) break;
-          if (format === "text") {
-            out(event.text);
-            lineOpen = !event.text.endsWith("\n");
-          } else {
-            current += event.text;
-          }
-          break;
-        case "message-end":
-          endMessage();
-          break;
-        case "tool-call":
-          toolCalls++;
-          err(`[tool] ${event.summary}\n`);
-          break;
-        case "tool-result":
-          if (event.isError) err(`[tool error] ${event.output.slice(0, 200)}\n`);
-          break;
-        case "usage":
-          inputTokens += event.inputTokens;
-          outputTokens += event.outputTokens;
-          if (event.costUsd !== undefined) costUsd = (costUsd ?? 0) + event.costUsd;
-          break;
-        case "retry":
-          err(`[retry ${event.attempt}/${event.maxAttempts}] ${event.message.slice(0, 120)}\n`);
-          break;
-        case "failover":
-          err(`[failover] ${event.from} -> ${event.to}: ${event.message.slice(0, 120)}\n`);
-          break;
-        case "goal-check":
-          err(event.done ? `[goal complete] ${event.reason}\n` : `[goal continues ${event.turnsLeft}] ${event.reason}\n`);
-          break;
-        case "subagent-update":
-          if (event.status !== "running") {
-            err(
-              `[agent ${event.status}] ${event.description} (${event.toolCalls} tools, ${event.inputTokens + event.outputTokens} tok)\n`,
-            );
-          }
-          break;
-        case "error":
-          errors.push(event.message);
-          err(`error: ${event.message}\n`);
-          break;
-        default:
-          break;
+    onEvent(e: AgentEvent): void {
+      if (e.type === "text-delta" && e.text) {
+        if (format === "text") out(e.text);
+        else current += e.text;
+        lineOpen = !e.text.endsWith("\n");
+      } else if (e.type === "message-end") endMessage();
+      else if (e.type === "usage") {
+        usage.inputTokens += e.inputTokens;
+        usage.outputTokens += e.outputTokens;
+        if (e.costUsd !== undefined) usage.costUsd = (usage.costUsd ?? 0) + e.costUsd;
+      } else {
+        if (e.type === "tool-call") toolCalls++;
+        if (e.type === "error") errors.push(e.message);
+        const line = diagnostic(e);
+        if (line) err(`${line}\n`);
       }
     },
-    finish(meta) {
+    /** Flush; returns true when the run hit an error. */
+    finish(meta: { sessionId: string; model: string }): boolean {
       endMessage();
+      const isError = errors.length > 0;
       if (format === "json") {
-        const result: PrintJsonResult = {
-          result: messages.join("\n\n"),
-          isError: errors.length > 0,
-          ...(errors.length > 0 ? { error: errors.join("\n") } : {}),
-          sessionId: meta.sessionId,
-          model: meta.model,
-          toolCalls,
-          usage: { inputTokens, outputTokens, ...(costUsd !== undefined ? { costUsd } : {}) },
-        };
+        const result: PrintJsonResult = { result: messages.join("\n\n"), isError, ...(isError ? { error: errors.join("\n") } : {}), ...meta, toolCalls, usage };
         out(`${JSON.stringify(result)}\n`);
       }
-      return errors.length > 0;
+      return isError;
     },
   };
 }
 
 /**
- * Headless mode: run one prompt, print the result, exit. Permissions
- * auto-deny unless --yolo. This is the scriptable/CI surface (and what
- * `/loop` schedules) and the debugging escape hatch when the TUI misbehaves.
+ * Headless mode: run one prompt, print the result, exit. Permissions auto-deny
+ * unless --yolo. This is the scriptable/CI surface (and what `/loop`
+ * schedules) and the debugging escape hatch when the TUI misbehaves.
  */
 export async function runPrint(flags: PrintFlags, prompt: string): Promise<void> {
   const setup = await setupAgent(flags, async () =>
@@ -150,30 +101,17 @@ export async function runPrint(flags: PrintFlags, prompt: string): Promise<void>
   for (const w of setup.warnings) process.stderr.write(`warning: ${w}\n`);
 
   if (setup.modelUnavailable) {
-    process.stderr.write(
-      `error: ${setup.modelUnavailable}\nNon-interactive mode needs a working model — pass -m provider/model-id or fix your config.\n`,
-    );
+    process.stderr.write(`error: ${setup.modelUnavailable}\nNon-interactive mode needs a working model — pass -m provider/model-id or fix your config.\n`);
     process.exitCode = 1;
     await stopMcpServers(setup.mcpConnections);
     return;
   }
 
-  const fmt = createPrintFormatter(
-    flags.outputFormat ?? "text",
-    (s) => process.stdout.write(s),
-    (s) => process.stderr.write(s),
-  );
+  const fmt = createPrintFormatter(flags.outputFormat ?? "text", (s) => process.stdout.write(s), (s) => process.stderr.write(s));
   try {
     for await (const event of setup.agent.send(prompt)) fmt.onEvent(event);
   } finally {
     if (fmt.finish({ sessionId: setup.sessionId, model: setup.agent.modelId })) process.exitCode = 1;
-    const { runLifecycleHook } = await import("../core/hooks.js");
-    await runLifecycleHook(
-      setup.config.hooks,
-      "session:end",
-      { sessionId: setup.sessionId, messages: setup.agent.history.length },
-      setup.cwd,
-    );
-    await stopMcpServers(setup.mcpConnections);
+    await teardown(setup);
   }
 }

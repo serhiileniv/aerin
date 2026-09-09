@@ -1,19 +1,22 @@
 import readline from "node:readline/promises";
 import { stdin, stdout, stderr } from "node:process";
-import { setupAgent, stopMcpServers } from "../cli.js";
+import { setupAgent, teardown, type RunFlags } from "../cli.js";
+import { diagnostic } from "./print.js";
 import type { PermissionDecision, PermissionRequest } from "../core/events.js";
 import { SessionStore, type SessionSummary } from "../session/store.js";
 import { colorizeDiff, relativeTime } from "../terminal/format.js";
-import { discoverModels, listProviderModels } from "../providers/list-models.js";
+import { discoverModels } from "../providers/list-models.js";
 import { resolveModel } from "../providers/registry.js";
 import { renderMarkdown } from "../terminal/markdown.js";
-import { persistModelChoice, persistProviderKey } from "../config/config.js";
+import { persistModelChoice } from "../config/config.js";
 import { renderCommand } from "../core/commands.js";
-import { catalogEntry, keyLooksLike } from "../providers/catalog.js";
+import { catalogEntry } from "../providers/catalog.js";
 import {
   compactCommand,
   goalCommand,
   loopCommand,
+  connectCommand,
+  helpLines,
   mcpCommand,
   resumeById,
   skillsCommand,
@@ -24,37 +27,10 @@ import {
 } from "../core/session-commands.js";
 import { expandMentions } from "../core/mentions.js";
 
-interface ReplFlags {
-  model?: string;
-  yolo: boolean;
-  continue: boolean;
-  resume?: string;
-  allowOutsideCwd: boolean;
-  cwd?: string;
-  mcp: boolean;
-}
-
-const HELP = `Commands:
-  /help         show this help
-  /clear        clear conversation history
-  /compact      summarize and compact the conversation
-  /models       list models available from your providers
-  /model <id>   switch model (any provider/model-id)
-  /resume       list previous conversations; /resume <number> to pick one
-  /plan         toggle plan mode (read-only exploration, agent presents a plan)
-  /goal [text]  autonomous goal loop — works until a judge sees it done (/goal clear stops)
-  /loop <when> <prompt>   run a prompt on a schedule via every (outlives this session); /loop lists, /loop log|run|stop <name>
-  /status       session overview
-  /skills       list available skill packs
-  /mcp          list connected MCP servers
-  /undo         revert the file changes of the last turn (incl. bash side effects)
-  /redo         re-apply changes reverted by /undo
-  /connect <provider> <key> [baseURL] [openai|anthropic]   save a provider API key to the global config
-  /exit         quit
-Anything else is sent to the agent. Ctrl+C interrupts a running turn.`;
+const REPL_ONLY = [{ name: "/models", description: "list models available from your providers" }];
 
 /** Plain readline REPL — no Ink. Kept forever as the TUI's debugging lifeline. */
-export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise<void> {
+export async function runRepl(flags: RunFlags, initialPrompt?: string): Promise<void> {
   // Created only after setup: attaching readline earlier would emit (and drop)
   // any input lines that arrive while setup is still running, e.g. piped stdin.
   let rl!: ReturnType<typeof readline.createInterface>;
@@ -120,33 +96,8 @@ export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise
           case "tool-call":
             stdout.write(`\n  ● ${event.summary}\n`);
             break;
-          case "tool-result":
-            if (event.isError) stdout.write(`  ✗ ${firstLine(event.output)}\n`);
-            break;
           case "compaction":
             stdout.write(`  [compacting context — was ${event.preTokens} tokens]\n`);
-            break;
-          case "usage":
-            break;
-          case "retry":
-            stdout.write(`  [retrying after provider error, attempt ${event.attempt}/${event.maxAttempts}]\n`);
-            break;
-          case "failover":
-            stdout.write(`  [${event.from} failed — continuing on ${event.to}]\n`);
-            break;
-          case "goal-check":
-            stdout.write(
-              event.done
-                ? `  [goal complete — ${event.reason}]\n`
-                : `  [goal continues, ${event.turnsLeft} turns left — ${event.reason}]\n`,
-            );
-            break;
-          case "subagent-update":
-            if (event.status !== "running") {
-              stdout.write(
-                `  └ agent ${event.status}: ${event.description} (${event.toolCalls} tools, ${event.inputTokens + event.outputTokens} tok)\n`,
-              );
-            }
             break;
           case "tool-display":
             stdout.write(colorizeDiff(event.text) + "\n");
@@ -156,11 +107,10 @@ export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise
               stdout.write(`  ${t.status === "done" ? "[x]" : t.status === "active" ? "[>]" : "[ ]"} ${t.text}\n`);
             }
             break;
-          case "error":
-            stdout.write(`\n  error: ${event.message}\n`);
-            break;
-          default:
-            break;
+          default: {
+            const line = diagnostic(event);
+            if (line) stdout.write(`  ${line}\n`);
+          }
         }
       }
     } finally {
@@ -183,7 +133,7 @@ export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise
       if (!line) return undefined;
       if (line === "/exit" || line === "/quit") return "quit";
       if (line === "/help") {
-        stdout.write(HELP + "\n");
+        stdout.write(`Commands:\n${helpLines(setup, REPL_ONLY).join("\n")}\nAnything else is sent to the agent. Ctrl+C interrupts a running turn.\n`);
         return undefined;
       }
       if (line === "/undo") {
@@ -196,42 +146,11 @@ export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise
       }
       if (line.startsWith("/connect")) {
         const [, prov, key, url, protoArg] = line.split(/\s+/);
-        if (prov && key) {
-          const looks = keyLooksLike(key);
-          if (looks && looks !== prov) {
-            stdout.write(`  ✗ that looks like a ${looks} key, not ${prov} — nothing saved. Use /connect ${looks}\n`);
-            return undefined;
-          }
-          let protocol: "openai" | "anthropic" | undefined =
-            protoArg === "openai" || protoArg === "anthropic" ? protoArg : undefined;
-          if (protoArg && !protocol) {
-            stdout.write(`  ✗ unknown protocol "${protoArg}" — expected "openai" or "anthropic"\n`);
-            return undefined;
-          }
-          protocol ??= catalogEntry(prov)?.protocol;
-          const baseURL = url ?? catalogEntry(prov)?.baseURL;
-          await persistProviderKey(prov, key, baseURL, protocol);
-          setup.config.providers = {
-            ...setup.config.providers,
-            [prov]: {
-              ...setup.config.providers?.[prov],
-              apiKey: key,
-              ...(baseURL ? { baseURL } : {}),
-              ...(protocol ? { protocol } : {}),
-            },
-          };
-          try {
-            const models = await listProviderModels(prov, setup.config);
-            stdout.write(
-              models && models.length > 0
-                ? `  ✓ ${prov} key works — ${models.length} models available\n`
-                : `  ✗ ${prov}: key saved but no models returned — wrong provider's key?\n`,
-            );
-          } catch (err) {
-            stdout.write(`  ✗ ${prov} REJECTED the key (${err instanceof Error ? err.message : err})\n`);
-          }
-        } else {
-          stdout.write("  usage: /connect <provider> <api-key> [baseURL] [openai|anthropic]\n");
+        if (!prov || !key) stdout.write("  usage: /connect <provider> <api-key> [baseURL] [openai|anthropic]\n");
+        else if (protoArg && protoArg !== "openai" && protoArg !== "anthropic") stdout.write(`  ✗ unknown protocol "${protoArg}" — expected "openai" or "anthropic"\n`);
+        else {
+          const protocol = (protoArg as "openai" | "anthropic" | undefined) ?? catalogEntry(prov)?.protocol;
+          await connectCommand(setup, prov, key, url ?? catalogEntry(prov)?.baseURL, protocol, (_, t) => stdout.write(`  ${t}\n`));
         }
         return undefined;
       }
@@ -353,14 +272,7 @@ export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise
     }
   } finally {
     rl.close();
-    const { runLifecycleHook } = await import("../core/hooks.js");
-    await runLifecycleHook(
-      setup.config.hooks,
-      "session:end",
-      { sessionId: setup.sessionId, messages: setup.agent.history.length },
-      setup.cwd,
-    );
-    await stopMcpServers(setup.mcpConnections);
+    await teardown(setup);
   }
 }
 
@@ -372,6 +284,3 @@ function indent(text: string, prefix: string): string {
     .join("\n");
 }
 
-function firstLine(text: string): string {
-  return text.split("\n")[0] ?? "";
-}

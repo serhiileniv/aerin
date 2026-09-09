@@ -33,6 +33,9 @@ interface CliFlags {
   mcp: boolean;
 }
 
+/** The subset of CLI flags every frontend (TUI, REPL, print) is started with. */
+export type RunFlags = Pick<CliFlags, "model" | "yolo" | "continue" | "resume" | "allowOutsideCwd" | "cwd" | "mcp">;
+
 export interface AgentSetup {
   agent: Agent;
   mcpConnections: McpConnection[];
@@ -67,7 +70,7 @@ function unavailableModel(modelId: string, reason: string): LanguageModel {
 }
 
 export async function setupAgent(
-  flags: Pick<CliFlags, "model" | "yolo" | "continue" | "resume" | "allowOutsideCwd" | "cwd" | "mcp">,
+  flags: RunFlags,
   onPermission: OnPermission,
   onQuestion?: AskUser,
 ): Promise<AgentSetup> {
@@ -324,21 +327,15 @@ export async function main(argv: string[]): Promise<void> {
   const opts = program.opts();
   let promptArgs = program.args.join(" ").trim();
   const promptFile = opts["promptFile"] as string | undefined;
-  if (promptFile) {
-    const { readFile } = await import("node:fs/promises");
-    let fromFile: string;
-    try {
-      fromFile = (await readFile(promptFile, "utf8")).trim();
-    } catch (err) {
-      process.stderr.write(`aerin: cannot read --prompt-file ${promptFile}: ${err instanceof Error ? err.message : err}\n`);
-      process.exitCode = 1;
-      return;
+  const outputFormat = String(opts["outputFormat"] ?? "text") as OutputFormat;
+  try {
+    if (!OUTPUT_FORMATS.includes(outputFormat)) throw new Error(`--output-format must be one of ${OUTPUT_FORMATS.join(", ")} (got "${outputFormat}")`);
+    if (promptFile) {
+      const fromFile = (await (await import("node:fs/promises")).readFile(promptFile, "utf8")).trim();
+      promptArgs = promptArgs ? `${promptArgs}\n\n${fromFile}` : fromFile;
     }
-    promptArgs = promptArgs ? `${promptArgs}\n\n${fromFile}` : fromFile;
-  }
-  const outputFormat = String(opts["outputFormat"] ?? "text");
-  if (!OUTPUT_FORMATS.includes(outputFormat as OutputFormat)) {
-    process.stderr.write(`aerin: --output-format must be one of ${OUTPUT_FORMATS.join(", ")} (got "${outputFormat}")\n`);
+  } catch (err) {
+    process.stderr.write(`aerin: ${err instanceof Error ? err.message : err}\n`);
     process.exitCode = 1;
     return;
   }
@@ -367,7 +364,7 @@ export async function main(argv: string[]): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      await runPrint({ ...flags, outputFormat: outputFormat as OutputFormat }, prompt);
+      await runPrint({ ...flags, outputFormat }, prompt);
       return;
     }
 
@@ -388,6 +385,13 @@ export async function main(argv: string[]): Promise<void> {
     process.stderr.write(`aerin: ${err instanceof Error ? err.message : err}\n`);
     process.exitCode = 1;
   }
+}
+
+/** Every frontend's exit path: the session:end hook, then the MCP children. */
+export async function teardown(setup: AgentSetup): Promise<void> {
+  const { runLifecycleHook } = await import("./core/hooks.js");
+  await runLifecycleHook(setup.config.hooks, "session:end", { sessionId: setup.sessionId, messages: setup.agent.history.length }, setup.cwd);
+  await stopMcpServers(setup.mcpConnections);
 }
 
 export { stopMcpServers };

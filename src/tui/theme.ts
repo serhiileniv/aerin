@@ -64,6 +64,11 @@ export function isLightTheme(): boolean {
 }
 
 /** "r;g;b" for raw ANSI truecolor sequences built from theme hexes. */
+/** Truecolor ANSI paint for text baked into the transcript. */
+export function paint(s: string, hex: string, bold = false): string {
+  return `${bold ? "\x1b[1m" : ""}\x1b[38;2;${rgbOf(hex)}m${s}\x1b[0m`;
+}
+
 export function rgbOf(hex: string): string {
   const n = parseInt(hex.slice(1), 16);
   return `${(n >> 16) & 255};${(n >> 8) & 255};${n & 255}`;
