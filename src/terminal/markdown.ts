@@ -1,4 +1,5 @@
-import { Marked } from "marked";
+import { Marked, type Tokens } from "marked";
+import { renderTable } from "./table.js";
 import { markedTerminal } from "marked-terminal";
 import { C, rgbOf } from "../tui/theme.js";
 
@@ -91,6 +92,20 @@ function ensure(width: number): Marked {
       code: railed, // fenced blocks get a dim left rail instead of bare indent
     }, colorEnabled ? { theme: SYNTAX_THEME as never } : undefined) as Parameters<Marked["use"]>[0],
   );
+  // marked-terminal's tables are content-sized and overflow narrow terminals,
+  // shearing every border when the terminal wraps them. Fit them to `width`.
+  instance.use({
+    renderer: {
+      table(this: { parser: { parseInline(tokens: Tokens.Table["header"][number]["tokens"]): string } }, token: Tokens.Table) {
+        const cell = (c: { tokens: Tokens.Table["header"][number]["tokens"] }) => this.parser.parseInline(c.tokens);
+        return `${renderTable(
+          { header: token.header.map(cell), rows: token.rows.map((r) => r.map(cell)), align: token.align },
+          width,
+          { border: dim, head: colorEnabled ? (s) => `\x1b[1m${s}\x1b[22m` : (s) => s },
+        )}\n\n`;
+      },
+    },
+  });
   return instance;
 }
 
