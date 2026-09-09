@@ -847,7 +847,8 @@ export class Agent {
     }
 
     const target = targetFor(call.toolName, input);
-    let policyDecision = this.opts.policy.decide(def.permission, target);
+    let tier = def.tierFor?.(input) ?? def.permission;
+    let policyDecision = this.opts.policy.decide(tier, target);
     if (policyDecision === "deny") {
       const denyRule = this.opts.policy.deniedBy(target);
       return {
@@ -883,7 +884,8 @@ export class Agent {
         } else {
           input = pre.replacedInput;
         }
-        policyDecision = this.opts.policy.decide(def.permission, targetFor(call.toolName, input));
+        tier = def.tierFor?.(input) ?? def.permission;
+        policyDecision = this.opts.policy.decide(tier, targetFor(call.toolName, input));
         if (policyDecision === "deny") {
           return { output: "The pre-hook's rewritten input is blocked by a permission deny rule.", isError: true };
         }
@@ -918,11 +920,11 @@ export class Agent {
     // Capture pre-change state so /undo can restore this turn. The shadow-git
     // snapshot runs before write AND execute tools, so bash/MCP side effects
     // are covered; without git we fall back to per-file capture on write tools.
-    if (def.permission !== "read") {
+    if (tier !== "read") {
       const shadow = await this.ensureShadow();
       if (shadow) {
         await shadow.snapshotIfNeeded();
-      } else if (def.permission === "write") {
+      } else if (tier === "write") {
         const p = (input as { path?: unknown })?.path;
         if (typeof p === "string" && p) {
           await this.checkpoints.record(path.resolve(this.opts.cwd, p)).catch(() => {});

@@ -23,6 +23,11 @@ export interface ToolDef<S extends z.ZodTypeAny = z.ZodTypeAny> {
   description: string;
   inputSchema: S;
   permission: PermissionTier;
+  /**
+   * Per-call tier override for tools whose actions span tiers (e.g. schedule:
+   * list is read, add is execute). Falls back to `permission` when absent.
+   */
+  tierFor?: (input: z.infer<S>) => PermissionTier;
   /** One-line human-readable summary shown in permission prompts and the transcript. */
   summarize: (input: z.infer<S>) => string;
   /** Optional rich preview for permission dialogs (e.g. a diff). */

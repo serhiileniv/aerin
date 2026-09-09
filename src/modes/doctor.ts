@@ -35,6 +35,16 @@ export async function runDoctor(cwd: string): Promise<void> {
         ),
   );
 
+  const { findEvery, EVERY_INSTALL_HINT } = await import("../tools/schedule-tool.js");
+  const everyBin = findEvery();
+  const everyVersion = spawnSync(everyBin, ["--version"], { encoding: "utf8", windowsHide: true, timeout: 3000 });
+  lines.push("", "Scheduler (schedule tool):");
+  lines.push(
+    everyVersion.status === 0
+      ? ok(`${everyVersion.stdout.trim().split("\n")[0]}: ${everyBin === "every" ? "on PATH" : everyBin}`)
+      : warn(`every not found — recurring tasks need it (aerin never uses cron). Install: ${EVERY_INSTALL_HINT}`),
+  );
+
   const { discoverSkills } = await import("../core/skills.js");
   const { discoverCommands } = await import("../core/commands.js");
   const skills = await discoverSkills(cwd);

@@ -10,6 +10,7 @@ import {
   compactCommand,
   cycleMode,
   goalCommand,
+  loopCommand,
   mcpCommand,
   resumeById,
   skillsCommand,
@@ -166,6 +167,7 @@ const SLASH_COMMANDS = [
   { name: "/resume", description: "resume a previous conversation in this directory" },
   { name: "/status", description: "session overview — model, mode, tokens, servers, jobs" },
   { name: "/goal", description: "autonomous goal loop — /goal <text> works until a judge sees it done; /goal clear stops" },
+  { name: "/loop", description: "run a prompt on a schedule via every — /loop 15m <prompt>; /loop lists, /loop log|run|stop <name>" },
   { name: "/skills", description: "list available skill packs" },
   { name: "/mcp", description: "list connected MCP servers and their tools" },
   { name: "/help", description: "show commands and keys" },
@@ -814,6 +816,14 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
           pushItem("info", res.message);
           setGoalSet(Boolean(setup.agent.currentGoal));
           if (res.run) void runTurn(res.run);
+          return;
+        }
+        case "/loop": {
+          try {
+            pushItem("info", await loopCommand(setup, arg));
+          } catch (err) {
+            pushItem("info", err instanceof Error ? err.message : String(err));
+          }
           return;
         }
         case "/plan":

@@ -17,7 +17,7 @@ import { detectOllamaModel } from "./providers/list-models.js";
 import { GLOBAL_CONFIG_FILE } from "./config/paths.js";
 import { SessionStore } from "./session/store.js";
 import { startMcpServers, stopMcpServers, type McpConnection } from "./mcp/manager.js";
-import { runPrint } from "./modes/print.js";
+import { runPrint, OUTPUT_FORMATS, type OutputFormat } from "./modes/print.js";
 import { runRepl } from "./modes/repl.js";
 import { VERSION } from "./version.js";
 
@@ -293,6 +293,8 @@ export async function main(argv: string[]): Promise<void> {
     .argument("[prompt...]", "prompt to run (interactive if omitted)")
     .option("-m, --model <id>", 'model as "provider/model-id", e.g. anthropic/claude-opus-4-8')
     .option("-p, --print", "non-interactive: run the prompt, print the result, exit")
+    .option("--output-format <format>", "with -p: text (streamed, default) or json (one object: result, usage, sessionId)", "text")
+    .option("--prompt-file <path>", "read the prompt from a file (what /loop tasks use — no shell quoting)")
     .option("--no-tui", "use the plain readline REPL instead of the TUI")
     .option("--yolo", "auto-approve all tool permissions (careful!)", false)
     .option("-c, --continue", "continue the most recent session in this directory", false)
@@ -320,7 +322,26 @@ export async function main(argv: string[]): Promise<void> {
   program.parse(argv);
 
   const opts = program.opts();
-  const promptArgs = program.args.join(" ").trim();
+  let promptArgs = program.args.join(" ").trim();
+  const promptFile = opts["promptFile"] as string | undefined;
+  if (promptFile) {
+    const { readFile } = await import("node:fs/promises");
+    let fromFile: string;
+    try {
+      fromFile = (await readFile(promptFile, "utf8")).trim();
+    } catch (err) {
+      process.stderr.write(`aerin: cannot read --prompt-file ${promptFile}: ${err instanceof Error ? err.message : err}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    promptArgs = promptArgs ? `${promptArgs}\n\n${fromFile}` : fromFile;
+  }
+  const outputFormat = String(opts["outputFormat"] ?? "text");
+  if (!OUTPUT_FORMATS.includes(outputFormat as OutputFormat)) {
+    process.stderr.write(`aerin: --output-format must be one of ${OUTPUT_FORMATS.join(", ")} (got "${outputFormat}")\n`);
+    process.exitCode = 1;
+    return;
+  }
 
   const flags = {
     model: opts["model"] as string | undefined,
@@ -346,7 +367,7 @@ export async function main(argv: string[]): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      await runPrint(flags, prompt);
+      await runPrint({ ...flags, outputFormat: outputFormat as OutputFormat }, prompt);
       return;
     }
 

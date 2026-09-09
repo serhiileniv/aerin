@@ -3,6 +3,7 @@ import type { PermissionMode, PermissionPolicy } from "../permissions/policy.js"
 import type { Skill } from "./skills.js";
 import type { CustomCommand } from "./commands.js";
 import { SessionStore } from "../session/store.js";
+import { loopCommand as runLoop } from "./loop.js";
 import type { ModelMessage } from "ai";
 
 /**
@@ -44,6 +45,15 @@ export function goalCommand(ctx: CommandCtx, arg: string): GoalResult {
       ? `current goal: ${ctx.agent.currentGoal}`
       : "(no goal set — /goal <text> starts an autonomous goal loop; /goal clear stops it)",
   };
+}
+
+/**
+ * `/loop <when> <prompt>`: schedule a headless aerin run through `every`
+ * (see docs/scheduling.md). Lives outside the session, so it keeps firing
+ * after aerin exits; `/loop` alone lists, `/loop log|run|stop <name>` manage.
+ */
+export function loopCommand(ctx: CommandCtx, arg: string): Promise<string> {
+  return runLoop({ cwd: ctx.cwd, yolo: ctx.policy.autoApprove, modelId: ctx.agent.modelId }, arg);
 }
 
 export function skillsCommand(ctx: CommandCtx): string {

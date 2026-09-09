@@ -13,6 +13,7 @@ import { catalogEntry, keyLooksLike } from "../providers/catalog.js";
 import {
   compactCommand,
   goalCommand,
+  loopCommand,
   mcpCommand,
   resumeById,
   skillsCommand,
@@ -42,6 +43,7 @@ const HELP = `Commands:
   /resume       list previous conversations; /resume <number> to pick one
   /plan         toggle plan mode (read-only exploration, agent presents a plan)
   /goal [text]  autonomous goal loop — works until a judge sees it done (/goal clear stops)
+  /loop <when> <prompt>   run a prompt on a schedule via every (outlives this session); /loop lists, /loop log|run|stop <name>
   /status       session overview
   /skills       list available skill packs
   /mcp          list connected MCP servers
@@ -252,6 +254,14 @@ export async function runRepl(flags: ReplFlags, initialPrompt?: string): Promise
         const res = goalCommand(setup, line.slice("/goal".length).trim());
         stdout.write(res.message + "\n");
         if (res.run) await runTurn(res.run);
+        return undefined;
+      }
+      if (line === "/loop" || line.startsWith("/loop ")) {
+        try {
+          stdout.write(`  ${(await loopCommand(setup, line.slice("/loop".length).trim())).replace(/\n/g, "\n  ")}\n`);
+        } catch (err) {
+          stdout.write(`  ${(err instanceof Error ? err.message : String(err)).replace(/\n/g, "\n  ")}\n`);
+        }
         return undefined;
       }
       if (line === "/plan") {

@@ -6,6 +6,7 @@ import { bashOutputTool } from "./bash-jobs.js";
 import { webFetchTool, webSearchTool } from "./web-tools.js";
 import { todoTool } from "./todo-tool.js";
 import { memoryTool } from "./memory-tool.js";
+import { scheduleTool } from "./schedule-tool.js";
 
 export function builtinTools(): ToolDef[] {
   return [
@@ -21,6 +22,7 @@ export function builtinTools(): ToolDef[] {
     webFetchTool,
     todoTool,
     memoryTool,
+    scheduleTool,
   ];
 }
 

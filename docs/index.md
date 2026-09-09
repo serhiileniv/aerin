@@ -14,6 +14,7 @@ One page per feature: what it does, how to use it, how it works, and where the c
 - [Goal loop](goal-loop.md) — `/goal <text>` keeps working until an evidence-based judge sees it done.
 - [Sub-agents](subagents.md) — read-only researchers, write-capable workers, named custom agents.
 - [Diagnostics](diagnostics.md) — the project's typecheck runs after every edit and failures feed back.
+- [Scheduling](scheduling.md) — recurring commands through `every` (launchd/systemd/Task Scheduler with run history), never cron; `/loop <when> <prompt>` schedules headless aerin runs; `-p --output-format text|json`.
 
 ## Context & memory
 - [Compaction](compaction.md) — token-budgeted tail plus an iteratively-updated structured summary.

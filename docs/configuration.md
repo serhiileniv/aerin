@@ -16,7 +16,7 @@ Source: `src/config/config.ts`. Two files, merged global ← project: the global
 | `diagnostics` | string \| false | Post-edit check command; false disables; unset auto-detects a `typecheck` script — [diagnostics](diagnostics.md) |
 | `recentModels` | string[] | Maintained automatically by `/model` |
 
-CLI flags that interact: `--yolo` (auto-approve everything not denied), `--allow-outside-cwd`, `-m/--model`, `--continue`, `--resume <id>`, `--no-tui`, `-p` (headless print).
+CLI flags that interact: `--yolo` (auto-approve everything not denied), `--allow-outside-cwd`, `-m/--model`, `--continue`, `--resume <id>`, `--no-tui`, `-p` (headless print) with `--output-format text|json` and `--prompt-file <path>` (see [scheduling](scheduling.md)).
 
 ## Connecting an Anthropic-Messages-shaped or oddly-authenticated endpoint
 

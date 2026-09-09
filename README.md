@@ -51,6 +51,7 @@ aerin                                  # interactive TUI
 aerin "fix the failing test"           # TUI with an opening prompt
 aerin --no-tui                         # plain readline REPL
 aerin -p --yolo "summarize this repo"  # headless, auto-approve, print, exit
+aerin -p --output-format json "…"      # one JSON object: result, usage, sessionId
 ```
 
 Switch models any time with `-m provider/model-id` or `/model` inside the session:
@@ -79,7 +80,7 @@ Every feature has a page in the [docs knowledge base](docs/index.md) with mechan
 - **[Spill files](docs/spill-files.md)** — truncated tool output is saved in full for grepping/slicing instead of re-running commands.
 - **[MCP](docs/mcp.md)** — paste your `mcpServers` config and the tools appear; [deferred loading](docs/deferred-mcp-tools.md) keeps big servers from flooding the context.
 - **[Skills & custom commands](docs/skills-and-commands.md)** — instruction packs and `/name` prompt templates, Claude Code-compatible (`.claude/` layouts are read too).
-- **Terminal UI** — full-screen Ink TUI with streamed markdown, in-app scrolling, multi-line input, `@file` fuzzy autocomplete, `/` command suggestions, live todo checklist, diff previews, and a context/cost meter — plus `--no-tui` (REPL) and `-p` (headless). Plan mode (`/plan`) makes everything read-only until you approve.
+- **Terminal UI** — full-screen Ink TUI with streamed markdown, in-app scrolling, multi-line input, `@file` fuzzy autocomplete, `/` command suggestions, live todo checklist, diff previews, and a context/cost meter — plus `--no-tui` (REPL) and `-p` (headless). Plan mode (`/plan`) makes everything read-only until you approve. `/loop 15m <prompt>` runs a prompt on a schedule through [`every`](https://github.com/serhiileniv/every) — it outlives the session and never touches cron.
 
 ## Configuration
 

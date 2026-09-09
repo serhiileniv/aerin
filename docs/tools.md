@@ -17,6 +17,7 @@ Source: `src/tools/`. All output passes the shared truncation + [spill](spill-fi
 | `agent` | read* | Sub-agents — research or `mode:"worker"` (see [sub-agents](subagents.md)) |
 | `todo` | read | Live task checklist shown in the UI |
 | `memory` | write | Save durable facts to AGENTS.md (see [memory](memory.md)) |
+| `schedule` | read/execute† | Recurring commands via `every` — list/log/doctor are read, add/run/pause/resume/remove execute (see [scheduling](scheduling.md)) |
 | `question` | read | ONE clarifying question with 2–4 options (only registered when a user can answer) |
 | `skill` | read | Load a skill body on demand |
 | `session_search` | read | Search/read past sessions (see [session search](session-search.md)) |
@@ -24,5 +25,6 @@ Source: `src/tools/`. All output passes the shared truncation + [spill](spill-fi
 | `mcp__<server>__<tool>` | execute | Connected MCP server tools |
 
 \* worker-mode actions are governed by the individual write/execute tools' permissions, not the agent tool's tier.
+† `ToolDef.tierFor(input)` picks the tier per call; the static `permission` is the fallback.
 
 Tool schemas stay flat with primitive types only — provider JSON-Schema quirks (Google/OpenAI/Ollama) break on unions and `format`.

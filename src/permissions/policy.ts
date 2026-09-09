@@ -102,6 +102,11 @@ export class PermissionPolicy {
     this.mode = on ? "plan" : "manual";
   }
 
+  /** True under --yolo: everything not denied is auto-approved. Loops inherit it. */
+  get autoApprove(): boolean {
+    return this.yolo;
+  }
+
   get inPlanMode(): boolean {
     return this.mode === "plan";
   }
@@ -132,6 +137,11 @@ export class PermissionPolicy {
       return `bash(${firstWord} *)`;
     }
     if (t.tool.startsWith("mcp__")) return t.tool;
+    if (t.tool === "schedule") {
+      // Approve the action, not one task name: `add nightly` -> schedule(add *)
+      const action = t.target.trim().split(/\s+/)[0] ?? t.target;
+      return `schedule(${action} *)`;
+    }
     return `${t.tool}(${t.target}*)`;
   }
 }
@@ -143,6 +153,11 @@ export function targetFor(toolName: string, input: unknown): RuleTarget {
   // Sub-agent spawns match on the named agent (or bare mode), so deny rules
   // like agent(worker) or agent(deploy-bot) control who may be spawned.
   if (toolName === "agent") return { tool: toolName, target: String(obj["agent"] ?? obj["mode"] ?? "") };
+  // Scheduling matches on "<action> <task>", so rules can scope by action
+  // (schedule(add *)) or pin a task (deny schedule(remove backup*)).
+  if (toolName === "schedule") {
+    return { tool: toolName, target: `${String(obj["action"] ?? "")} ${String(obj["name"] ?? "")}`.trim() };
+  }
   if (typeof obj["path"] === "string") return { tool: toolName, target: obj["path"] };
   return { tool: toolName, target: "" };
 }

