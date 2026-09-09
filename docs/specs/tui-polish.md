@@ -93,14 +93,14 @@ Rules: no hardcoded hex in components (`#000000` ×2 → `<Text inverse>`); no `
 ```
 
 - Width: clip *after* composing the meta suffix so no line exceeds `mdWidth()`.
-- `ctrl+o` hint appears once per turn (first collapsed result), then only `…` — the footer already says `? for shortcuts`.
+- `ctrl+o` hint appears once per turn (first collapsed result), then only `…` — the footer already says `? for shortcuts`. Pressing it expands the output **inside the tool block it belongs to** (the item is rewritten), not at the end of the transcript.
 - Diff preview (`tool-display`) is rendered **under** the `⎿` result line, indented 5, `+`/`-` colored, `@@` dim; the result-rewrite logic already handles "something landed between call and result" — it now inserts the result line *before* the diff item.
 - Summaries: every tool's `summarize` returns `Name(args)`; MCP tools become `Mcp(server.tool)`; agent-nested calls `Agent(desc) › Read(x)`; replay renders `Name(args)` from the stored input via `summarize`, not the registry id.
 - Sub-agents: running `  ⎿  agent: desc · 3 tools · Read(x)` dim; finished `  ⎿  agent done · desc · 3 tools · 1.2k tok · $0.0012`.
 
 ### 5. Turn receipt
 
-After each finished turn, one dim line under the last block (Codex/Claude Code convention):
+After each finished turn, one dim line hung under the last block of the turn — appended to that block's item (kept as `suffix` so a resize re-render preserves it), never a free-floating line after the block gap:
 
 ```
   ⎿  done · 42s · 12.8k↑ 1.1k↓ · $0.0123
@@ -206,5 +206,6 @@ Conventions: Claude Code docs (statusline, interactive-mode, terminal-config, pe
 - 2026-09-09 — `›` for user lines (Codex) so `❯` keeps one meaning; considered keeping `❯` and only fixing queued lines — rejected as still overloaded (prompt + selection + transcript).
 - 2026-09-09 — Turn receipt on every turn, not only ≥3s: it is the one place cost is visible per turn; the bell stays gated on 3s.
 - 2026-09-09 — `ctrl+o` hint once per turn; the footer's `? for shortcuts` covers discovery.
+- 2026-09-09 — Receipt and ctrl+o expansion attach to their block (first live run showed both dangling under the block gap / under each other). Footer shows `ctx <1%` instead of `0%` on large-context models.
 - 2026-09-09 — Delete `terminal/gradient.ts` (−45 lines) and keep a per-row shade table for the logo instead of the gradient sampler; the light-theme fade uses a second shade table rather than a flat color.
 - 2026-09-09 — Esc in dialogs cancels the dialog (Gemini `No, suggest changes (esc)`) instead of aborting the turn; the global Esc handler now skips when a dialog is open.

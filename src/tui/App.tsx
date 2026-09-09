@@ -82,6 +82,8 @@ interface TranscriptItem {
   key: number;
   kind: TranscriptKind;
   text: string;
+  /** Lines hung under the block (the turn receipt) — kept apart from `text` so a resize re-render keeps them. */
+  suffix?: string;
   /** Raw markdown for "assistant" items — kept so a resize can re-wrap at the new width instead of leaving stale hard-wraps. */
   raw?: string;
 }
@@ -284,7 +286,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
   const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const workingRef = useRef(false);
   const turnStartRef = useRef(0);
-  const lastToolResultRef = useRef<{ summary: string; output: string; isError: boolean } | null>(null);
+  const lastToolResultRef = useRef<{ key: number; summary: string; output: string; isError: boolean } | null>(null);
   const lastSummaryRef = useRef<string | null>(null);
   /** The call whose result is pending: its transcript item is rewritten in place when the result lands. */
   const activeToolRef = useRef<{ key: number; summary: string; startedAt: number } | null>(null);
@@ -372,7 +374,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
   // first rendered at, producing ragged double-wrapped text.
   useEffect(() => {
     setItems((prev) =>
-      prev.map((it) => (it.kind === "assistant" && it.raw ? { ...it, text: withDot(renderMarkdown(it.raw, mdWidth())) } : it)),
+      prev.map((it) => (it.kind === "assistant" && it.raw ? { ...it, text: withDot(renderMarkdown(it.raw, mdWidth())) + (it.suffix ? `\n${it.suffix}` : "") } : it)),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.columns]);
@@ -449,7 +451,8 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
                 isError: event.isError,
                 ...(active ? { ms: Date.now() - active.startedAt } : {}),
               };
-              lastToolResultRef.current = { summary, output: event.output, isError: event.isError };
+              const itemKey = active?.key ?? nextKey.current++;
+              lastToolResultRef.current = { key: itemKey, summary, output: event.output, isError: event.isError };
               const block = formatToolBlock(summary, result, mdWidth(), !hintShownRef.current);
               if (block.includes("ctrl+o")) hintShownRef.current = true;
               setItems((prev) => {
@@ -457,7 +460,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
                 // between, the result line goes right under the call and the
                 // diff stays below it (the block's own blank gap moves to the diff).
                 const idx = active ? prev.findIndex((it) => it.key === active.key) : -1;
-                if (idx < 0) return [...prev, { key: nextKey.current++, kind: "tool", text: block }];
+                if (idx < 0) return [...prev, { key: itemKey, kind: "tool", text: block }];
                 if (idx === prev.length - 1) return [...prev.slice(0, idx), { ...prev[idx]!, text: block }];
                 const tail = prev.slice(idx + 1);
                 const last = tail[tail.length - 1]!;
@@ -553,10 +556,13 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
         // enough to have wandered off to another window.
         const elapsed = Date.now() - turnStartRef.current;
         const a = setup.agent;
-        pushItem(
-          "info",
-          child(`done · ${fmtDuration(elapsed)} · ${fmtTokens(a.totalInputTokens)}↑ ${fmtTokens(a.totalOutputTokens)}↓${a.totalCostUsd > 0 ? ` · ${fmtCost(a.totalCostUsd)}` : ""}`),
-        );
+        const receipt = child(`done · ${fmtDuration(elapsed)} · ${fmtTokens(a.totalInputTokens)}↑ ${fmtTokens(a.totalOutputTokens)}↓${a.totalCostUsd > 0 ? ` · ${fmtCost(a.totalCostUsd)}` : ""}`);
+        // Hangs under the reply (or the last tool block) so it belongs to the turn, not to the gap after it.
+        setItems((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && blockGap(last.kind) && last.kind !== "user") return [...prev.slice(0, -1), { ...last, text: `${last.text}\n${receipt}`, suffix: receipt }];
+          return [...prev, { key: nextKey.current++, kind: "info", text: receipt }];
+        });
         if (elapsed >= 3000) process.stdout.write("\x07");
         settleDialogs();
         setSubagents(new Map()); // clear stragglers on abort/error
@@ -882,7 +888,12 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
       if (last) {
         const lines = last.output.split("\n");
         const shown = lines.length > 300 ? [...lines.slice(0, 300), `[… ${lines.length - 300} more lines]`] : lines;
-        pushItem("info", child(`${last.summary} · full output\n${shown.join("\n")}`, last.isError ? C.error : C.dim));
+        const expanded = `${formatToolCall(last.summary, last.isError ? "error" : "ok", mdWidth())}\n${child(shown.join("\n"), last.isError ? C.error : C.dim)}`;
+        setItems((prev) =>
+          prev.some((it) => it.key === last.key)
+            ? prev.map((it) => (it.key === last.key ? { ...it, text: it.suffix ? `${expanded}\n${it.suffix}` : expanded } : it))
+            : [...prev, { key: nextKey.current++, kind: "tool", text: expanded }],
+        );
         lastToolResultRef.current = null; // one-shot: re-arms on the next tool result
       }
       return;
@@ -1407,7 +1418,7 @@ export function App(props: { setup: TuiSetup; initialPrompt?: string }): React.R
                   : C.dim
               }
             >
-              {` · ctx ${Math.round((ctxTokens / modelInfo(modelId).contextWindow) * 100)}%`}
+              {` · ctx ${(ctxTokens / modelInfo(modelId).contextWindow) * 100 < 1 ? "<1" : Math.round((ctxTokens / modelInfo(modelId).contextWindow) * 100)}%`}
             </Text>
           ) : null}
           <Text color={C.dim}>

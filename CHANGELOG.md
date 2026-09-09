@@ -2,6 +2,11 @@
 
 Aerin is developed *with* aerin-style agents: the overwhelming majority of the code since v0.0.90 was written by a coding agent under human direction. We report it per release, Aider-style.
 
+## 0.0.121 — 2026-09-09
+- **Fixed: the turn receipt floated below the reply**: `⎿ done · 17s · …` was pushed as its own line after the block gap, so it read as detached; it now hangs directly under the reply (or the last tool block) and survives a resize re-render.
+- **Fixed: `ctrl+o` output landed at the bottom of the transcript**: the expanded output now replaces the collapsed line inside the tool block it belongs to (`● List(.)` → its full output), instead of hanging under whatever came last.
+- **Fixed: footer showed `ctx 0%` with thousands of tokens in**: on large-context models the percentage rounded to zero; it now shows `<1%`.
+
 ## 0.0.120 — 2026-09-09
 - **Scheduling through `every`, never cron**: new `schedule` tool drives [`every`](https://github.com/serhiileniv/every) (launchd / systemd user timers / Task Scheduler, with run history). list/inspect/log/doctor are read-tier; add/run/pause/resume/remove are execute-tier via the new per-call `ToolDef.tierFor`, so rules like `schedule(add *)` and deny `schedule(remove backup*)` work. The system prompt forbids crontab/plists/timer units; `aerin doctor` reports whether `every` is installed.
 - **`/loop <when> <prompt>`**: run a prompt on a schedule outside the session — each firing is a fresh headless `aerin -p --output-format text --prompt-file …` run registered with `every set`, so it outlives the terminal and has a log. `every`'s grammar is parsed off the front of the prompt (`15m`, `day 9am,6pm`, `weekdays 9:30`, `monday,thursday 6pm`, `monthly 1st 9am`, `once tomorrow 9am`); `--name`, `--timeout` (default 10m), `--yolo`; `/loop` lists, `/loop log|run|stop <name>` manage. The prompt lives in a file, so no shell quoting on any platform.
